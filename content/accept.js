@@ -45,7 +45,8 @@ globalThis.EasyUploadAccept = (() => {
   }
 
   function matches(tokens, name, mime) {
-    if (!tokens.length) return true;
+    // Sem accept, ou accept="*" / "*/*" (usado pelo WhatsApp, por exemplo): aceita tudo.
+    if (!tokens.length || tokens.includes('*') || tokens.includes('*/*')) return true;
     const lower = (name || '').toLowerCase();
     const type = mimeFor(name, mime);
     return tokens.some((t) => {
