@@ -44,9 +44,13 @@ globalThis.EasyUploadAccept = (() => {
       .filter(Boolean);
   }
 
+  // Sem accept, ou accept="*" / "*/*" (usado pelo WhatsApp, por exemplo): aceita tudo.
+  function isRestrictive(tokens) {
+    return tokens.length > 0 && !tokens.includes('*') && !tokens.includes('*/*');
+  }
+
   function matches(tokens, name, mime) {
-    // Sem accept, ou accept="*" / "*/*" (usado pelo WhatsApp, por exemplo): aceita tudo.
-    if (!tokens.length || tokens.includes('*') || tokens.includes('*/*')) return true;
+    if (!isRestrictive(tokens)) return true;
     const lower = (name || '').toLowerCase();
     const type = mimeFor(name, mime);
     return tokens.some((t) => {
@@ -56,5 +60,5 @@ globalThis.EasyUploadAccept = (() => {
     });
   }
 
-  return { parse, matches, mimeFor, extOf };
+  return { parse, matches, isRestrictive, mimeFor, extOf };
 })();

@@ -584,6 +584,7 @@
 
   function createPopup(target) {
     const acceptTokens = Accept.parse(target.accept);
+    const isAccepted = (item) => Accept.matches(acceptTokens, item.name, item.type);
     const multiple = target.multiple;
     const limit = Number(settings.downloadsLimit) || DEFAULTS.downloadsLimit;
     const selected = new Map(); // key -> item
@@ -607,7 +608,7 @@
     const attachBtn = h('button', { class: 'btn primary', hidden: !multiple, disabled: true, onclick: () => attachSelected() }, 'Anexar');
     const nativeBtn = h('button', { class: multiple ? 'btn' : 'btn primary', onclick: () => chooseNative() }, 'Escolher do computador…');
 
-    const acceptLabel = target.accept ? target.accept.replace(/\s*,\s*/g, ', ') : '';
+    const acceptLabel = Accept.isRestrictive(acceptTokens) ? target.accept.replace(/\s*,\s*/g, ', ') : '';
     const panel = h(
       'div',
       { class: 'panel', role: 'dialog', 'aria-label': 'Easy Upload' },
@@ -698,12 +699,12 @@
       try {
         const res = await dataPort.request({ op: 'clipboard' });
         if (state.closed) return;
-        const items = res.items.map((it) => ({ ...it, source: 'clipboard' }));
-        clipboardList.replaceChildren(
-          ...(items.length
-            ? items.map((it) => renderItem(it))
-            : [empty(res.ok ? 'Nenhuma imagem, arquivo ou texto no clipboard.' : 'Não foi possível ler o clipboard.')])
-        );
+        const all = res.items.map((it) => ({ ...it, source: 'clipboard' }));
+        const items = all.filter(isAccepted);
+        let message = 'Nenhuma imagem, arquivo ou texto no clipboard.';
+        if (!res.ok) message = 'Não foi possível ler o clipboard.';
+        else if (all.length) message = `O conteúdo do clipboard não é aceito por este campo (${acceptLabel}).`;
+        clipboardList.replaceChildren(...(items.length ? items.map((it) => renderItem(it)) : [empty(message)]));
       } catch (err) {
         clipboardList.replaceChildren(empty(`Erro: ${err.message}`));
       }
@@ -712,15 +713,17 @@
 
     async function loadDownloads(fileAccess) {
       try {
-        const { items: candidates } = await sendToSW({ type: 'downloads', limit });
+        // O SW já devolve só os downloads compatíveis com `accept`.
+        const { items: candidates } = await sendToSW({ type: 'downloads', limit, accept: target.accept });
         if (state.closed) return;
+        const noneMessage = Accept.isRestrictive(acceptTokens) ? `Nenhum download recente compatível (${acceptLabel}).` : 'Nenhum download recente.';
 
         if (fileAccess === false) {
           showFileAccessBanner('Para anexar downloads, ative "Permitir acesso a URLs de arquivo" nos detalhes da extensão.');
           downloadsList.replaceChildren(
             ...(candidates.length
               ? candidates.slice(0, limit).map((d) => renderItem(toDownloadItem(d), 'Requer acesso a URLs de arquivo'))
-              : [empty('Nenhum download recente.')])
+              : [empty(noneMessage)])
           );
           return;
         }
@@ -743,7 +746,7 @@
         if (!existing.length && candidates.length && fileAccess == null) {
           showFileAccessBanner('Nenhum download pôde ser lido. Verifique se "Permitir acesso a URLs de arquivo" está ativado.');
         }
-        downloadsList.replaceChildren(...(existing.length ? existing.map((d) => renderItem(d)) : [empty('Nenhum download recente.')]));
+        downloadsList.replaceChildren(...(existing.length ? existing.map((d) => renderItem(d)) : [empty(noneMessage)]));
       } catch (err) {
         downloadsList.replaceChildren(empty(`Erro: ${err.message}`));
       }
@@ -777,7 +780,6 @@
 
     function renderItem(item, forcedDisabledReason) {
       let reason = forcedDisabledReason || '';
-      if (!reason && !Accept.matches(acceptTokens, item.name, item.type)) reason = `Não aceito por este campo (${target.accept})`;
       if (!reason && item.size > maxBytes()) reason = `Maior que o limite de ${settings.maxFileMB} MB`;
 
       const sub = [item.kind === 'text' ? item.preview : null, formatBytes(item.size), item.when ? formatWhen(item.when) : null].filter(Boolean);

@@ -2,6 +2,8 @@
 // (isso vai direto entre content script e offscreen document via Port).
 'use strict';
 
+importScripts('content/accept.js'); // mesmo parser de `accept` do content script
+
 const OFFSCREEN_PATH = 'offscreen.html';
 let creatingOffscreen = null;
 
@@ -44,24 +46,28 @@ function basename(path) {
   return path.split(/[\\/]/).pop() || path;
 }
 
-async function listDownloads(limit) {
+async function listDownloads(limit, accept) {
+  const tokens = EasyUploadAccept.parse(accept);
   // Busca mais itens do que o necessário: alguns podem não existir mais no
   // disco (o campo `exists` do Chrome pode estar desatualizado) e são
-  // descartados depois pela checagem do offscreen.
+  // descartados depois pela checagem do offscreen. Com `accept` restrito, varre
+  // um trecho maior do histórico para achar N itens compatíveis.
   const results = await chrome.downloads.search({
     orderBy: ['-startTime'],
     state: 'complete',
     exists: true,
-    limit: Math.max(limit * 3, 20),
+    limit: EasyUploadAccept.isRestrictive(tokens) ? 300 : Math.max(limit * 3, 20),
   });
 
   const items = [];
   for (const d of results) {
     if (!d.filename || d.exists === false) continue;
+    const name = basename(d.filename);
+    if (!EasyUploadAccept.matches(tokens, name, d.mime)) continue;
     items.push({
       id: d.id,
       path: d.filename,
-      name: basename(d.filename),
+      name,
       mime: d.mime || '',
       size: d.fileSize > 0 ? d.fileSize : d.totalBytes > 0 ? d.totalBytes : 0,
       time: d.endTime || d.startTime,
@@ -119,7 +125,7 @@ async function handle(msg, sender) {
       await ensureOffscreen();
       return { ok: true, fileAccess: await getFileAccess() };
     case 'downloads':
-      return { ok: true, items: await listDownloads(Math.min(Math.max(msg.limit | 0, 1), 30)) };
+      return { ok: true, items: await listDownloads(Math.min(Math.max(msg.limit | 0, 1), 30), msg.accept) };
     case 'openOptions':
       await chrome.runtime.openOptionsPage();
       return { ok: true };
