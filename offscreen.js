@@ -34,8 +34,6 @@ async function handle(port, msg) {
   switch (msg.op) {
     case 'clipboard':
       return post(port, { id, ...(await listClipboard()) });
-    case 'diagnose':
-      return post(port, { id, report: await diagnoseClipboard() });
     case 'probe':
       return post(port, { id, results: await Promise.all(msg.files.map(probeFile)) });
     case 'read': {
@@ -74,8 +72,6 @@ function pasteIntoTarget() {
       }
     }
     captured = {
-      types: Array.from(dt.types),
-      items: Array.from(dt.items, (i) => ({ kind: i.kind, type: i.type })),
       files,
       text: dt.getData('text/plain'),
       html: dt.getData('text/html'),
@@ -169,27 +165,6 @@ async function listClipboard() {
   }
 
   return { ok, items };
-}
-
-async function diagnoseClipboard() {
-  const { ok, captured } = pasteIntoTarget();
-  const report = {
-    context: 'offscreen',
-    execCommandPaste: ok,
-    pasteEventFired: !!captured,
-    types: captured?.types || [],
-    items: captured?.items || [],
-    files: (captured?.files || []).map((f) => ({ name: f.name, type: f.type, size: f.size })),
-    textLength: captured?.text?.length || 0,
-    htmlLength: captured?.html?.length || 0,
-  };
-  try {
-    const entries = await navigator.clipboard.read();
-    report.asyncClipboardRead = entries.map((e) => e.types);
-  } catch (err) {
-    report.asyncClipboardRead = `erro: ${err.name}: ${err.message}`;
-  }
-  return report;
 }
 
 // ---------- Arquivos locais ----------
