@@ -1,27 +1,16 @@
-// ISOLATED world: decide quando interceptar, mostra o popup (Shadow DOM fechado),
-// busca os dados (SW para metadados, offscreen para bytes) e preenche o input.
-//
-// Iframes pequenos demais para o popup delegam a UI ao frame principal:
-//   - o pedido vai pelo SW (que conhece o frameId de quem pediu) até o frame 0;
-//   - a posição do input sobe por uma cadeia de postMessage, em que cada frame
-//     soma o deslocamento do <iframe> filho;
-//   - a escolha volta pelo SW direto para o frame de origem, que lê os bytes do
-//     offscreen e preenche o input.
+// ISOLATED world: decide quando interceptar, mostra o popup e preenche o input.
 (() => {
   'use strict';
 
-  // Sem as APIs da extensão (script órfão durante um recarregamento, ou frames
-  // especiais em que o Chrome não as expõe) não há o que fazer: o seletor nativo
-  // segue funcionando normalmente. Sai antes de desligar uma instância válida.
+  // Sem as APIs da extensão (script órfão ou frame sem acesso) não faz nada, e o
+  // seletor nativo continua funcionando.
   try {
     if (!chrome.runtime?.id || !chrome.storage?.sync) return;
   } catch {
     return;
   }
 
-  // Se a extensão foi recarregada, a instância anterior (órfã, sem acesso às APIs)
-  // continua na página. Ela é desligada aqui, e esta assume. Todos os listeners
-  // ficam presos a `signal` para poderem ser removidos de uma vez.
+  // Desliga a instância anterior, que fica órfã quando a extensão é recarregada.
   const TAKEOVER_EVENT = 'easyupload:takeover';
   document.dispatchEvent(new CustomEvent(TAKEOVER_EVENT));
   const lifetime = new AbortController();
@@ -47,11 +36,11 @@
 
   let settings = { ...DEFAULTS };
   let settingsReady = false;
-  let bypass = false; // ligado só durante o input.click() do "Escolher do computador"
-  let passThroughOnce = null; // input cujo próximo clique deve ir direto ao seletor nativo
+  let bypass = false; // durante o input.click() de "Escolher do computador"
+  let passThroughOnce = null; // input cujo próximo clique vai direto ao seletor nativo
   let lastPointer = null;
   let popup = null;
-  const remoteInputs = new Map(); // (subframe) requestId -> input aguardando o popup do frame principal
+  const remoteInputs = new Map(); // (iframe) requestId -> input
   const rectWaiters = new Map(); // (frame principal) requestId -> { rect } | { resolve }
   const actions = new WeakMap(); // botão do popup -> ação
 
@@ -67,8 +56,6 @@
     .catch(() => {})
     .finally(() => {
       settingsReady = true;
-      // Se nem esta linha aparece no console com o debug ligado, o script não foi injetado
-      // (ex.: acesso da extensão ao site restrito em chrome://extensions).
       dbg('ativo em', location.href, IS_TOP ? '(frame principal)' : '(iframe)', isExcluded() ? '— site excluído' : '');
     });
 
@@ -79,7 +66,7 @@
 
   function extensionAlive() {
     try {
-      return !!chrome.runtime?.id; // vira undefined quando a extensão é recarregada
+      return !!chrome.runtime?.id; // undefined depois que a extensão é recarregada
     } catch {
       return false;
     }
@@ -137,29 +124,29 @@
     try {
       showFor(input);
     } catch (err) {
-      // Na dúvida, deixa o seletor nativo abrir em vez de engolir o clique.
+      // Melhor abrir o seletor nativo do que engolir o clique.
       console.error('[Easy Upload] erro ao abrir o popup; usando o seletor nativo:', err);
       return false;
     }
     return true;
   }
 
-  // Cliques reais (e os sintéticos gerados por <label for>) em inputs conectados.
+  // Cliques do usuário e de <label for> em inputs no DOM.
   window.addEventListener(
     'click',
     (e) => {
-      if (tryIntercept(e.composedPath()[0], 'clique no input')) e.preventDefault(); // cancela o seletor nativo
+      if (tryIntercept(e.composedPath()[0], 'clique no input')) e.preventDefault();
     },
     { capture: true, signal }
   );
 
-  // input.click() / input.showPicker() vindos do script da página (via main-world.js).
+  // input.click() / showPicker() da página, avisados pelo main-world.js.
   window.addEventListener(
     INTERCEPT_EVENT,
     (e) => {
       const via = e.detail === 2 ? 'input.showPicker()' : 'input.click()';
       if (!e.relatedTarget) return dbg(via, '→ evento do MAIN world chegou sem o input');
-      if (tryIntercept(e.relatedTarget, via)) e.preventDefault(); // avisa o MAIN world para não chamar o original
+      if (tryIntercept(e.relatedTarget, via)) e.preventDefault();
     },
     { capture: true, signal }
   );
@@ -180,7 +167,7 @@
       if (e.key !== 'Escape') return;
       if (popup) {
         e.preventDefault();
-        e.stopImmediatePropagation(); // evita que um modal da página feche junto
+        e.stopImmediatePropagation(); // para não fechar um modal da página junto
         closePopup('Esc');
       }
       closeRemotePopup();
@@ -191,12 +178,10 @@
   window.addEventListener('scroll', () => popup?.reposition(), { capture: true, passive: true, signal });
   window.addEventListener('resize', () => popup?.reposition(), { passive: true, signal });
 
-  // O popup é invisível para a página. Os eventos dele param aqui, na captura
-  // do window, antes de qualquer handler da página (este listener é registrado
-  // em document_start, então é o primeiro). Sem isso, menus e modais que fecham
-  // ao "clicar fora" (WhatsApp, X…) se fecham e desmontam o input antes de ele
-  // ser preenchido. Como o evento não chega aos botões, as ações são disparadas
-  // daqui mesmo.
+  // Esconde da página os eventos do popup, parando-os na captura do window antes
+  // de qualquer handler dela. Sem isso, menus que fecham ao "clicar fora"
+  // (WhatsApp, X) desmontam o input antes do preenchimento. Como os eventos não
+  // chegam aos botões, as ações são disparadas daqui.
   for (const type of [
     'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick',
     'auxclick', 'contextmenu', 'touchstart', 'touchend', 'wheel',
@@ -206,7 +191,7 @@
       (e) => {
         if (!popup || e.composedPath()[0] !== popup.host) return;
         e.stopImmediatePropagation();
-        if (type === 'mousedown') e.preventDefault(); // não tira o foco do elemento atual da página
+        if (type === 'mousedown') e.preventDefault(); // mantém o foco onde está
         if (type === 'click') popup.activate(e);
       },
       { capture: true, passive: false, signal }
@@ -216,8 +201,7 @@
   function openNativePicker(input) {
     bypass = true;
     try {
-      // O protótipo deste world não tem o patch do MAIN world, e a flag faz o
-      // listener de captura acima deixar o clique passar.
+      // O protótipo deste world não tem o patch do MAIN world.
       input.click();
     } finally {
       bypass = false;
@@ -250,7 +234,7 @@
     return out;
   }
 
-  // Port direto com o offscreen document (o SW não participa do tráfego de bytes).
+  // Port direto com o offscreen document.
   const dataPort = (() => {
     let port = null;
     let seq = 0;
@@ -310,7 +294,7 @@
   }
 
   // ---------- Alvos do popup ----------
-  // O popup só conhece esta interface; não sabe se o input está neste frame ou num iframe.
+  // O input pode estar neste frame (local) ou num iframe (remoto).
 
   function localTarget(input) {
     return {
@@ -321,7 +305,7 @@
       async deliver(items) {
         fillInput(input, await loadFiles(items));
       },
-      // Síncrono até o input.click(), para aproveitar a user activation do clique no botão.
+      // Síncrono até o input.click(), para aproveitar a user activation do clique.
       async openNative() {
         openNativePicker(input);
         return {};
@@ -339,7 +323,7 @@
       anchorRect: () => (req.rect ? new DOMRect(req.rect.x, req.rect.y, req.rect.w, req.rect.h) : null),
       container: () => document.querySelector('dialog:modal') || document.fullscreenElement || document.documentElement,
       async deliver(items) {
-        // Só o necessário para o frame de origem buscar os bytes (sem thumbnails).
+        // Sem thumbnails: só o necessário para o iframe buscar os bytes.
         const slim = items.map(({ source, key, path, name, type, lastModified }) => ({ source, key, path, name, type, lastModified }));
         await command('deliver', { items: slim });
       },
@@ -367,14 +351,14 @@
     });
   }
 
-  // (subframe) um clique ou Esc aqui dentro fecha o popup aberto no frame principal.
+  // (iframe) Clique ou Esc aqui fecha o popup aberto no frame principal.
   function closeRemotePopup() {
     if (IS_TOP || !remoteInputs.size) return;
     for (const requestId of remoteInputs.keys()) sendToSW({ type: 'closeTop', requestId }).catch(() => {});
     remoteInputs.clear();
   }
 
-  // A posição do input sobe frame a frame; cada um soma o deslocamento do <iframe> filho.
+  // A posição do input sobe frame a frame, somando o deslocamento de cada <iframe>.
   window.addEventListener(
     'message',
     (e) => {
@@ -421,8 +405,8 @@
       return { ok: true };
     }
     if (msg.cmd === 'native') {
-      // Iframes de mesma origem recebem a activation do clique no frame principal;
-      // nos de outra origem só resta a activation do clique original (~5 s).
+      // Iframes de outra origem não recebem a activation do clique no frame
+      // principal; só resta a do clique original (~5 s).
       if (navigator.userActivation?.isActive) {
         remoteInputs.delete(msg.requestId);
         openNativePicker(input);
@@ -495,8 +479,7 @@
 
   // ---------- UI ----------
 
-  // `onclick` não vira listener: fica registrado em `actions` e é disparado pelo
-  // escudo de eventos acima.
+  // `onclick` vai para `actions`, disparado pelo listener que esconde os eventos.
   function h(tag, props = {}, ...children) {
     const el = document.createElement(tag);
     for (const [k, v] of Object.entries(props)) {
@@ -519,8 +502,7 @@
     return sheet;
   }
 
-  // Thumbnail com fallback: se a CSP da página bloquear data: em img-src,
-  // decodifica os bytes e desenha num canvas (que não passa pela CSP).
+  // Se a CSP da página bloquear data: em img-src, desenha num canvas.
   function makeThumb(dataUrl, glyph) {
     const box = h('span', { class: 'thumb' });
     if (!dataUrl) {
@@ -563,7 +545,7 @@
   }
 
   function pickContainer(input) {
-    // Um <dialog> modal deixa todo o resto da página inerte: o popup precisa ficar dentro dele.
+    // Um <dialog> modal deixa o resto da página inerte.
     const modal = input.isConnected ? input.closest('dialog') : document.querySelector('dialog:modal');
     if (modal?.matches(':modal')) return modal;
     return document.fullscreenElement || document.documentElement;
@@ -575,7 +557,7 @@
     const visible = (r) => r && (r.width > 0 || r.height > 0) && r.bottom > 0 && r.right > 0 && r.top < vh && r.left < vw;
     if (input.isConnected) {
       const r = input.getBoundingClientRect();
-      // Inputs "escondidos" de 1px (truque comum de dropzones) não servem de âncora.
+      // Inputs de 1px (comuns em dropzones) não servem de âncora.
       if (visible(r) && r.width >= 8 && r.height >= 8) return r;
       for (const label of input.labels || []) {
         const lr = label.getBoundingClientRect();
@@ -644,7 +626,7 @@
     target.container().append(host);
     try {
       host.popover = 'manual';
-      host.showPopover(); // top layer: fica acima de dialogs/popovers da página
+      host.showPopover(); // top layer: acima de dialogs e popovers da página
     } catch {}
 
     const state = {
@@ -652,7 +634,7 @@
       requestId: target.requestId || null,
       closed: false,
       reposition,
-      // Chamado pelo escudo de eventos: acha o botão sob o cursor (ou focado, se veio do teclado).
+      // Botão sob o cursor, ou o focado se o clique veio do teclado.
       activate(e) {
         const el = e.detail === 0 ? root.activeElement : root.elementFromPoint(e.clientX, e.clientY);
         const btn = el?.closest('button');
@@ -722,8 +704,6 @@
 
     async function loadDownloads(fileAccess) {
       try {
-        // O SW devolve todos os downloads compatíveis com `accept`, do mais recente
-        // para o mais antigo (só metadados).
         const { items: candidates, scanned } = await sendToSW({ type: 'downloads', accept: target.accept });
         if (state.closed) return;
         const noneMessage = Accept.isRestrictive(acceptTokens) ? `Nenhum download recente compatível (${acceptLabel}).` : 'Nenhum download recente.';
@@ -742,8 +722,7 @@
           return;
         }
 
-        // Verifica em lotes quais ainda existem no disco, até completar `limit`.
-        // Arquivos apagados ou movidos não "gastam" vagas da lista.
+        // Verifica em lotes quais ainda existem no disco até completar `limit`.
         const BATCH = 20;
         const found = [];
         let checked = 0;

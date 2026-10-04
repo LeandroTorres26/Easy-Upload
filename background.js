@@ -1,10 +1,11 @@
-// Service worker: só metadados e orquestração. Nunca trafega bytes de arquivo
-// (isso vai direto entre content script e offscreen document via Port).
+// Service worker: metadados e orquestração. Os bytes dos arquivos não passam por
+// aqui; vão direto do offscreen para o content script.
 'use strict';
 
-importScripts('content/accept.js'); // mesmo parser de `accept` do content script
+importScripts('content/accept.js');
 
 const OFFSCREEN_PATH = 'offscreen.html';
+const HISTORY_SCAN = 300;
 let creatingOffscreen = null;
 
 async function hasOffscreen() {
@@ -22,7 +23,7 @@ async function ensureOffscreen() {
       justification: 'Ler o clipboard e os arquivos baixados para oferecê-los em campos de upload.',
     })
     .catch(async (err) => {
-      // Corrida entre duas chamadas: se o documento já existe, está tudo certo.
+      // Duas chamadas simultâneas: a segunda falha, mas o documento existe.
       if (!(await hasOffscreen())) throw err;
     })
     .finally(() => {
@@ -46,12 +47,8 @@ function basename(path) {
   return path.split(/[\\/]/).pop() || path;
 }
 
-// Devolve todos os downloads compatíveis com `accept` (só metadados, sem ícones),
-// do mais recente para o mais antigo. O content script verifica em lotes quais
-// ainda existem no disco (o campo `exists` do Chrome pode estar desatualizado)
-// até completar a quantidade configurada, e só então pede os ícones.
-const HISTORY_SCAN = 300;
-
+// Downloads compatíveis com `accept`, do mais recente ao mais antigo. Quais ainda
+// existem no disco é verificado depois pelo content script, via offscreen.
 async function listDownloads(accept) {
   const tokens = EasyUploadAccept.parse(accept);
   const results = await chrome.downloads.search({
@@ -84,15 +81,12 @@ async function getIcons(ids) {
     ids.map(async (id) => {
       try {
         icons[id] = await chrome.downloads.getFileIcon(id, { size: 32 });
-      } catch {
-        // sem ícone, a UI usa um glifo genérico
-      }
+      } catch {}
     })
   );
   return icons;
 }
 
-// Repassa para um frame específico da aba de origem (tabs.sendMessage não exige a permissão "tabs").
 function toFrame(sender, frameId, message) {
   if (!sender.tab) throw new Error('Mensagem fora de uma aba.');
   return chrome.tabs.sendMessage(sender.tab.id, message, { frameId });
@@ -100,7 +94,7 @@ function toFrame(sender, frameId, message) {
 
 async function handle(msg, sender) {
   switch (msg.type) {
-    // Iframe pequeno pede para o frame principal mostrar o popup.
+    // Iframes pequenos: o popup abre no frame principal e a escolha volta ao iframe.
     case 'openInTop':
       await toFrame(sender, 0, {
         type: 'eu:openRemote',
@@ -113,7 +107,6 @@ async function handle(msg, sender) {
     case 'closeTop':
       await toFrame(sender, 0, { type: 'eu:close', requestId: msg.requestId }).catch(() => {});
       return { ok: true };
-    // Frame principal devolve a escolha (ou o pedido de seletor nativo) ao iframe de origem.
     case 'frameCommand': {
       const res = await toFrame(sender, msg.frameId, {
         type: 'eu:command',
@@ -149,10 +142,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return true;
 });
 
-// Quando a extensão é instalada ou recarregada, as abas já abertas ficam com um
-// content script órfão (sem acesso às APIs) até serem recarregadas. Isso afeta
-// justamente abas que ficam abertas o tempo todo, como WhatsApp e redes sociais.
-// Reinjeta os mesmos scripts do manifest; a nova instância desliga a antiga.
+// Ao instalar ou recarregar a extensão, os content scripts das abas abertas ficam
+// órfãos até a aba ser recarregada. Reinjeta; a nova instância desliga a antiga.
 async function injectIntoOpenTabs() {
   const scripts = chrome.runtime.getManifest().content_scripts;
   const tabs = await chrome.tabs.query({});
@@ -166,13 +157,13 @@ async function injectIntoOpenTabs() {
           world: cs.world || 'ISOLATED',
           injectImmediately: true,
         })
-        .catch(() => {}); // páginas protegidas, Web Store, etc.
+        .catch(() => {}); // páginas onde extensões não podem rodar
     }
   }
 }
 
 chrome.runtime.onInstalled.addListener(({ reason }) => {
-  ensureOffscreen().catch(() => {}); // pré-aquece para o primeiro popup abrir mais rápido
+  ensureOffscreen().catch(() => {});
   if (reason === 'install' || reason === 'update') injectIntoOpenTabs().catch(() => {});
 });
 chrome.runtime.onStartup.addListener(() => ensureOffscreen().catch(() => {}));

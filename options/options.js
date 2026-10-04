@@ -52,7 +52,7 @@ $('openExtensions').addEventListener('click', () => {
   chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
 });
 
-// A página de detalhes reinicia a extensão ao mudar o toggle; reconfere ao voltar.
+// Reconfere ao voltar da página de detalhes da extensão.
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) checkFileAccess();
 });

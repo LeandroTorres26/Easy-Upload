@@ -1,14 +1,6 @@
-// Offscreen document: o único contexto com DOM + permissões da extensão.
-// - Lê o clipboard via execCommand('paste') num contenteditable. A permissão
-//   clipboardRead dispensa o prompt por site. navigator.clipboard.read() não
-//   serve aqui porque exige documento com foco.
-// - Lê arquivos baixados via XHR em file:// (fetch() não suporta o esquema file:).
-// - Gera thumbnails e transmite bytes para o content script.
-//
-// Transporte: runtime Ports só serializam JSON (Blob/ArrayBuffer viram {}).
-// Os bytes vão em chunks base64 de 1 MiB, cada um uma mensagem separada, bem
-// abaixo do limite de ~64 MB por mensagem. O overhead do base64 é de ~33%,
-// contra ~300% de um array de números.
+// Offscreen document: lê o clipboard e os arquivos baixados e envia os bytes ao
+// content script. Ports só transportam JSON, então os arquivos vão em chunks
+// base64 de 1 MiB (detalhes no README).
 'use strict';
 
 const PORT_NAME = 'easyupload-data';
@@ -20,8 +12,8 @@ let clipboardCache = new Map(); // key -> File (válido até a próxima leitura)
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== PORT_NAME) return;
-  // A página do outro lado pode navegar ou ir para o back/forward cache; o Chrome
-  // fecha o Port e registra um erro "Unchecked runtime.lastError" se ninguém o ler.
+  // Lê o lastError para o Chrome não registrar erro quando a página navega ou vai
+  // para o back/forward cache.
   port.onDisconnect.addListener(() => void chrome.runtime.lastError);
   port.onMessage.addListener((msg) => {
     handle(port, msg).catch((err) => post(port, { id: msg.id, error: String(err?.message || err) }));
@@ -33,7 +25,7 @@ function post(port, msg) {
     port.postMessage(msg);
     return true;
   } catch {
-    return false; // o content script fechou (aba navegou, popup fechado)
+    return false; // a página do outro lado já se desconectou
   }
 }
 
@@ -63,6 +55,8 @@ async function handle(port, msg) {
 
 // ---------- Clipboard ----------
 
+// execCommand('paste') funciona aqui graças à permissão clipboardRead, sem prompt.
+// navigator.clipboard.read() não serve: exige documento com foco.
 function pasteIntoTarget() {
   const target = document.getElementById('paste-target');
   target.textContent = '';
@@ -92,7 +86,7 @@ function pasteIntoTarget() {
   target.focus();
   let ok = false;
   try {
-    ok = document.execCommand('paste'); // o evento 'paste' dispara de forma síncrona aqui
+    ok = document.execCommand('paste'); // dispara o 'paste' de forma síncrona
   } finally {
     target.removeEventListener('paste', onPaste);
     target.blur();
@@ -101,8 +95,7 @@ function pasteIntoTarget() {
   return { ok, captured };
 }
 
-// Algumas fontes (ex.: "copiar imagem" em certos apps) só colocam um <img src="data:...">
-// no HTML, sem arquivo. Recupera essas imagens como File.
+// Alguns apps copiam imagens só como <img src="data:..."> no HTML, sem arquivo.
 function filesFromHtml(html) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const out = [];
@@ -140,7 +133,7 @@ async function listClipboard() {
   for (const [i, f] of files.entries()) {
     const isImage = f.type.startsWith('image/');
     let name = f.name;
-    // Prints e imagens copiadas chegam como "image.png": dá um nome útil.
+    // Prints chegam como "image.png".
     if (!name || (isImage && /^image\.\w+$/i.test(name))) {
       const ext = EXT_BY_IMAGE_MIME[f.type] || 'png';
       name = `clipboard-${stamp}${files.length > 1 ? `-${i + 1}` : ''}.${ext}`;
@@ -212,6 +205,7 @@ function pathToFileUrl(path) {
   return s.startsWith('/') ? `file://${segments.join('/')}` : `file:///${segments.join('/')}`;
 }
 
+// XHR porque fetch() não suporta file://.
 function readFileUrl(url) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -227,8 +221,7 @@ function readFileUrl(url) {
   });
 }
 
-// Verifica se o arquivo existe sem ler o conteúdo: aborta assim que a
-// resposta começa a chegar.
+// Verifica se o arquivo existe sem lê-lo inteiro: aborta assim que a resposta começa.
 function probeUrl(url) {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();

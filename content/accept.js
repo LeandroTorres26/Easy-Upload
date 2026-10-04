@@ -1,5 +1,5 @@
-// Interpretação do atributo `accept` e inferência de MIME por extensão.
-// Carregado antes de content.js no mesmo ISOLATED world.
+// Interpretação do atributo `accept` e inferência de MIME pela extensão.
+// Usado pelo content script e pelo service worker.
 globalThis.EasyUploadAccept = (() => {
   'use strict';
 
@@ -30,7 +30,7 @@ globalThis.EasyUploadAccept = (() => {
     return m ? m[1].toLowerCase() : '';
   }
 
-  // MIME efetivo: usa o informado se for específico, senão infere pela extensão.
+  // Usa o MIME informado se for específico; senão, infere pela extensão.
   function mimeFor(name, mime) {
     const m = (mime || '').toLowerCase().split(';')[0].trim();
     if (!GENERIC.has(m)) return m;
@@ -44,7 +44,7 @@ globalThis.EasyUploadAccept = (() => {
       .filter(Boolean);
   }
 
-  // Sem accept, ou accept="*" / "*/*" (usado pelo WhatsApp, por exemplo): aceita tudo.
+  // Vazio, "*" ou "*/*" aceitam qualquer arquivo.
   function isRestrictive(tokens) {
     return tokens.length > 0 && !tokens.includes('*') && !tokens.includes('*/*');
   }

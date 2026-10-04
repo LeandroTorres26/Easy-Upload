@@ -145,7 +145,7 @@
 
   document.getElementById('clear').onclick = () => (logEl.textContent = '');
 
-  // Log de todo 'input'/'change' que chega ao document (prova que os eventos borbulham).
+  // Registra todo 'input'/'change' que chega ao document.
   for (const type of ['input', 'change']) {
     document.addEventListener(type, (e) => {
       const t = e.composedPath()[0];
@@ -154,12 +154,12 @@
     });
   }
 
-  // 5. resultado do escondido
+  // 5. Input escondido
   document.getElementById('hidden').addEventListener('change', (e) => {
     document.getElementById('hidden-result').textContent = describeFiles(e.target.files) || '(vazio)';
   });
 
-  // 6. input desanexado
+  // 6. Input desanexado
   document.getElementById('detached-btn').addEventListener('click', () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -172,7 +172,7 @@
     input.click();
   });
 
-  // 9. "React-like": estado + render + delegação na raiz, sem ler o DOM fora do evento.
+  // 9. "React-like": estado + render + delegação na raiz.
   (() => {
     const root = document.getElementById('react-root');
     let state = { title: '', files: [], submitted: null };
@@ -258,7 +258,7 @@
     btn.addEventListener('click', () => (menu.hidden ? openMenu() : closeMenu()));
   })();
 
-  // 12. iframe
+  // 12. Iframe
   window.addEventListener('message', (e) => {
     if (e.data?.framed) log(`change no iframe:\n  • ${e.data.framed.join('\n  • ')}`);
   });
