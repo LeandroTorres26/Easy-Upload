@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Easy Upload: testes</title>
+  <style>
+    :root { color-scheme: light dark; --border: rgba(127,127,127,.35); --muted: #888; }
+    body { font: 14px/1.45 system-ui, sans-serif; margin: 0; }
+    main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; display: grid; grid-template-columns: 1fr 360px; gap: 24px; }
+    @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+    h1 { font-size: 20px; margin: 0 0 4px; grid-column: 1 / -1; }
+    .intro { grid-column: 1 / -1; color: var(--muted); margin: 0; }
+    .case { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+    .case h2 { font-size: 14px; margin: 0 0 4px; }
+    .case p { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; }
+    .expect { font-size: 12px; }
+    input[type="file"] { max-width: 100%; }
+    .result { font-size: 12px; margin-top: 6px; font-family: ui-monospace, Consolas, monospace; white-space: pre-wrap; }
+    button, .fake-btn { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: inherit; cursor: pointer; }
+    .dropzone { display: grid; place-items: center; height: 80px; border: 2px dashed var(--border); border-radius: 10px; cursor: pointer; }
+    aside { position: sticky; top: 16px; align-self: start; }
+    #log { border: 1px solid var(--border); border-radius: 10px; padding: 10px; height: 70vh; overflow: auto; font: 12px/1.4 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
+    .log-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    dialog { border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
+    iframe { width: 100%; height: 70px; border: 1px dashed var(--border); border-radius: 8px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Easy Upload: página de testes</h1>
+  <p class="intro">Clique em cada campo: o popup deve aparecer em vez do seletor do Windows (exceto onde indicado). Os eventos recebidos aparecem no log ao lado.</p>
+
+  <div>
+    <div class="case">
+      <h2>1. Input simples</h2>
+      <input id="simple" type="file">
+    </div>
+
+    <div class="case">
+      <h2>2. multiple</h2>
+      <p>Itens com caixinha de seleção e botão "Anexar (n)".</p>
+      <input id="multiple" type="file" multiple>
+    </div>
+
+    <div class="case">
+      <h2>3. accept="image/*"</h2>
+      <p>Arquivos que não são imagem aparecem esmaecidos.</p>
+      <input id="images" type="file" accept="image/*">
+    </div>
+
+    <div class="case">
+      <h2>4. accept=".pdf,.docx,application/zip"</h2>
+      <input id="docs" type="file" accept=".pdf,.docx,application/zip">
+    </div>
+
+    <div class="case">
+      <h2>5. Input escondido acionado por botão (<code>input.click()</code>)</h2>
+      <input id="hidden" type="file" hidden>
+      <button type="button" onclick="document.getElementById('hidden').click()">Enviar arquivo</button>
+      <div class="result" id="hidden-result"></div>
+    </div>
+
+    <div class="case">
+      <h2>6. Input desanexado (nunca entra no DOM)</h2>
+      <p>Padrão comum em bibliotecas: <code>createElement('input')</code> + <code>.click()</code>.</p>
+      <button type="button" id="detached-btn">Selecionar (desanexado)</button>
+      <div class="result" id="detached-result"></div>
+    </div>
+
+    <div class="case">
+      <h2>7. Dropzone com &lt;label for&gt; e input invisível</h2>
+      <label class="dropzone" for="labelled">Clique para enviar uma imagem</label>
+      <input id="labelled" type="file" accept="image/png,image/jpeg" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+    </div>
+
+    <div class="case">
+      <h2>8. <code>input.showPicker()</code></h2>
+      <input id="picker" type="file" style="display:none">
+      <button type="button" onclick="document.getElementById('picker').showPicker()">showPicker()</button>
+    </div>
+
+    <div class="case">
+      <h2>9. Form "React-like" (estado controlado, listener delegado na raiz)</h2>
+      <p>Emula o React 17+: um único listener de <code>change</code> no container raiz atualiza o estado e re-renderiza.</p>
+      <div id="react-root"></div>
+    </div>
+
+    <div class="case">
+      <h2>10. Input em Shadow DOM aberto</h2>
+      <div id="shadow-host"></div>
+    </div>
+
+    <div class="case">
+      <h2>11. Input dentro de &lt;dialog&gt; modal</h2>
+      <p>O popup precisa aparecer acima do dialog e ser clicável.</p>
+      <button type="button" onclick="document.getElementById('dlg').showModal()">Abrir dialog</button>
+      <dialog id="dlg">
+        <p>Upload dentro de um modal:</p>
+        <input id="in-dialog" type="file">
+        <p><button type="button" onclick="this.closest('dialog').close()">Fechar</button></p>
+      </dialog>
+    </div>
+
+    <div class="case">
+      <h2>12. Iframe (srcdoc)</h2>
+      <iframe srcdoc="<input type=file id=framed><script>document.getElementById('framed').addEventListener('change',e=>parent.postMessage({framed:[...e.target.files].map(f=>f.name+' ('+f.size+' B)')},'*'))</script>"></iframe>
+    </div>
+
+    <div class="case">
+      <h2>13. Menu estilo WhatsApp (fecha ao clicar fora)</h2>
+      <p>O menu fecha com <code>mousedown</code> fora (listener em captura) e quando perde o foco, e o input dentro dele é desmontado. O <code>change</code> é ouvido por delegação no menu: se o input for desmontado antes do preenchimento, nada aparece.</p>
+      <button type="button" id="wa-attach">📎 Anexar</button>
+      <div id="wa-menu" hidden style="margin-top:6px"></div>
+      <div class="result" id="wa-result"></div>
+    </div>
+
+    <div class="case">
+      <h2>14. Deve abrir o seletor nativo direto (não interceptar)</h2>
+      <p class="expect">webkitdirectory:</p>
+      <input id="dir" type="file" webkitdirectory>
+      <p class="expect">disabled:</p>
+      <input id="disabled" type="file" disabled>
+    </div>
+  </div>
+
+  <aside>
+    <div class="log-head"><b>Log de eventos</b><button type="button" id="clear">Limpar</button></div>
+    <div id="log"></div>
+  </aside>
+</main>
+
+<script>
+  'use strict';
+  const logEl = document.getElementById('log');
+
+  function describeFiles(files) {
+    return [...files].map((f) => `  • ${f.name} (${f.type || 'sem tipo'}, ${f.size} B, mod ${new Date(f.lastModified).toLocaleString('pt-BR')})`).join('\n');
+  }
+
+  function log(text) {
+    const time = new Date().toLocaleTimeString('pt-BR');
+    logEl.textContent = `[${time}] ${text}\n` + logEl.textContent;
+  }
+
+  document.getElementById('clear').onclick = () => (logEl.textContent = '');
+
+  // Log de todo 'input'/'change' que chega ao document (prova que os eventos borbulham).
+  for (const type of ['input', 'change']) {
+    document.addEventListener(type, (e) => {
+      const t = e.composedPath()[0];
+      if (t.type !== 'file') return;
+      log(`${type} em #${t.id || '(sem id)'} (isTrusted=${e.isTrusted}, ${t.files.length} arquivo(s))\n${describeFiles(t.files)}`);
+    });
+  }
+
+  // 5. resultado do escondido
+  document.getElementById('hidden').addEventListener('change', (e) => {
+    document.getElementById('hidden-result').textContent = describeFiles(e.target.files) || '(vazio)';
+  });
+
+  // 6. input desanexado
+  document.getElementById('detached-btn').addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.addEventListener('change', () => {
+      const text = describeFiles(input.files) || '(vazio)';
+      document.getElementById('detached-result').textContent = text;
+      log(`change no input desanexado (${input.files.length} arquivo(s))\n${text}`);
+    });
+    input.click();
+  });
+
+  // 9. "React-like": estado + render + delegação na raiz, sem ler o DOM fora do evento.
+  (() => {
+    const root = document.getElementById('react-root');
+    let state = { title: '', files: [], submitted: null };
+
+    function setState(patch) {
+      state = { ...state, ...patch };
+      render();
+    }
+
+    function render() {
+      root.innerHTML = `
+        <form data-role="form">
+          <p><input name="title" placeholder="Título" value="${state.title.replace(/"/g, '&quot;')}"></p>
+          <p><input name="attachments" type="file" multiple accept="image/*,.pdf" id="react-file"></p>
+          <p class="result">Estado: ${state.files.length ? state.files.map((f) => `${f.name} (${f.size} B)`).join(', ') : 'nenhum arquivo'}</p>
+          <button type="submit" ${state.files.length ? '' : 'disabled'}>Enviar</button>
+          ${state.submitted ? `<p class="result">Enviado: ${state.submitted}</p>` : ''}
+        </form>`;
+    }
+
+    // Um listener por tipo de evento na raiz, como o React faz.
+    root.addEventListener('change', (e) => {
+      if (e.target.name === 'attachments') setState({ files: [...e.target.files], submitted: null });
+    });
+    root.addEventListener('input', (e) => {
+      if (e.target.name === 'title') state.title = e.target.value;
+    });
+    root.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const fd = new FormData();
+      state.files.forEach((f) => fd.append('attachments', f));
+      setState({ submitted: `${state.title || '(sem título)'}: ${[...fd.getAll('attachments')].map((f) => f.name).join(', ')}` });
+    });
+
+    render();
+  })();
+
+  // 10. Shadow DOM aberto
+  (() => {
+    const shadow = document.getElementById('shadow-host').attachShadow({ mode: 'open' });
+    shadow.innerHTML = '<input type="file" id="in-shadow"> <span id="out" style="font-size:12px"></span>';
+    shadow.getElementById('in-shadow').addEventListener('change', (e) => {
+      shadow.getElementById('out').textContent = [...e.target.files].map((f) => f.name).join(', ');
+    });
+  })();
+
+  // 13. Menu estilo WhatsApp
+  (() => {
+    const btn = document.getElementById('wa-attach');
+    const menu = document.getElementById('wa-menu');
+    const result = document.getElementById('wa-result');
+
+    function openMenu() {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.textContent = 'Fotos e vídeos';
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.multiple = true;
+      input.hidden = true;
+      item.addEventListener('click', () => input.click());
+      menu.replaceChildren(item, input);
+      menu.hidden = false;
+      item.focus();
+    }
+
+    function closeMenu() {
+      menu.hidden = true;
+      menu.replaceChildren(); // desmonta o input, como um componente React
+    }
+
+    menu.addEventListener('change', (e) => {
+      result.textContent = describeFiles(e.target.files);
+      closeMenu();
+    });
+    document.addEventListener('mousedown', (e) => {
+      if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) closeMenu();
+    }, true);
+    menu.addEventListener('focusout', (e) => {
+      if (!menu.contains(e.relatedTarget)) setTimeout(closeMenu);
+    });
+    btn.addEventListener('click', () => (menu.hidden ? openMenu() : closeMenu()));
+  })();
+
+  // 12. iframe
+  window.addEventListener('message', (e) => {
+    if (e.data?.framed) log(`change no iframe:\n  • ${e.data.framed.join('\n  • ')}`);
+  });
+</script>
+</body>
+</html>
