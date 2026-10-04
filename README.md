@@ -54,6 +54,8 @@ O Easy Upload não envia nada para lugar nenhum. Não faz requisições de rede,
 - Os arquivos só são lidos quando você escolhe um item, e vão direto para o campo do site.
 - As opções ficam salvas no armazenamento de sincronização do próprio navegador.
 
+Política de privacidade completa: [PRIVACY.md](PRIVACY.md).
+
 ## Permissões
 
 | Permissão | Por quê |
