@@ -10,6 +10,15 @@
 (() => {
   'use strict';
 
+  // Sem as APIs da extensão (script órfão durante um recarregamento, ou frames
+  // especiais em que o Chrome não as expõe) não há o que fazer: o seletor nativo
+  // segue funcionando normalmente. Sai antes de desligar uma instância válida.
+  try {
+    if (!chrome.runtime?.id || !chrome.storage?.sync) return;
+  } catch {
+    return;
+  }
+
   // Se a extensão foi recarregada, a instância anterior (órfã, sem acesso às APIs)
   // continua na página. Ela é desligada aqui, e esta assume. Todos os listeners
   // ficam presos a `signal` para poderem ser removidos de uma vez.
