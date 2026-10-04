@@ -1,0 +1,77 @@
+{
+  "extName": { "message": "Easy Upload" },
+  "extDescription": { "message": "Anexe arquivos sem abrir o seletor: escolha do clipboard ou dos downloads recentes ao clicar em qualquer campo de upload." },
+
+  "popupTitle": { "message": "Enviar arquivo" },
+  "popupTitleMultiple": { "message": "Enviar arquivos" },
+  "options": { "message": "Opções" },
+  "close": { "message": "Fechar" },
+  "closeEsc": { "message": "Fechar (Esc)" },
+  "sectionClipboard": { "message": "Área de transferência" },
+  "sectionDownloads": { "message": "Downloads recentes" },
+  "chooseFromComputer": { "message": "Escolher do computador…" },
+  "attach": { "message": "Anexar" },
+  "attachCount": {
+    "message": "Anexar ($COUNT$)",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "loading": { "message": "Carregando…" },
+  "loadingMany": {
+    "message": "Carregando $COUNT$ arquivos…",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "unavailable": { "message": "Indisponível." },
+  "errorGeneric": {
+    "message": "Erro: $ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "errorTalkingToExtension": {
+    "message": "Erro ao falar com a extensão: $ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "clipboardEmpty": { "message": "Nenhuma imagem, arquivo ou texto no clipboard." },
+  "clipboardUnreadable": { "message": "Não foi possível ler o clipboard." },
+  "clipboardNotAccepted": {
+    "message": "O conteúdo do clipboard não é aceito por este campo ($ACCEPT$).",
+    "placeholders": { "accept": { "content": "$1" } }
+  },
+  "downloadsNone": { "message": "Nenhum download recente." },
+  "downloadsNoneCompatible": {
+    "message": "Nenhum download recente compatível ($ACCEPT$).",
+    "placeholders": { "accept": { "content": "$1" } }
+  },
+  "fileAccessNeeded": { "message": "Para anexar downloads, ative \"Permitir acesso a URLs de arquivo\" nos detalhes da extensão." },
+  "fileAccessMaybeOff": { "message": "Nenhum download pôde ser lido. Verifique se \"Permitir acesso a URLs de arquivo\" está ativado." },
+  "fileAccessRequired": { "message": "Requer acesso a URLs de arquivo" },
+  "openSettings": { "message": "Abrir configurações" },
+  "tooLarge": {
+    "message": "Maior que o limite de $SIZE$ MB",
+    "placeholders": { "size": { "content": "$1" } }
+  },
+  "clickFieldAgain": { "message": "Clique no campo de novo para abrir o seletor do sistema." },
+
+  "errNoResponse": { "message": "Sem resposta da extensão." },
+  "errConnectionLost": { "message": "Conexão com a extensão perdida." },
+  "errFieldGone": { "message": "O campo de upload não está mais disponível." },
+  "errFrameNoResponse": { "message": "O frame do campo de upload não respondeu." },
+  "errItemGone": { "message": "O item não está mais disponível. Reabra o popup." },
+  "errTooLarge": { "message": "Arquivo maior que o limite configurado." },
+  "errReadFailed": { "message": "Não foi possível ler o arquivo (foi removido, ou \"Permitir acesso a URLs de arquivo\" está desativado)." },
+
+  "optionsTitle": { "message": "Easy Upload: opções" },
+  "optGeneral": { "message": "Geral" },
+  "optDownloadsLimit": { "message": "Downloads exibidos" },
+  "optClipboard": { "message": "Mostrar área de transferência" },
+  "optMaxSize": { "message": "Tamanho máximo por arquivo (MB)" },
+  "optExcluded": { "message": "Sites excluídos" },
+  "optExcludedHint": { "message": "(um domínio por linha; inclui subdomínios)" },
+  "optDebug": { "message": "Modo debug" },
+  "optDebugHint": { "message": "(registra no console da página por que cada clique foi ou não interceptado)" },
+  "optSaved": { "message": "Salvo." },
+  "optFileAccessTitle": { "message": "Acesso a arquivos baixados" },
+  "optChecking": { "message": "Verificando…" },
+  "optFileAccessHint": { "message": "Necessário para anexar downloads. Ative em chrome://extensions → Easy Upload → Detalhes → Permitir acesso a URLs de arquivo." },
+  "optOpenDetails": { "message": "Abrir detalhes da extensão" },
+  "optFileAccessOn": { "message": "Ativado: os downloads podem ser anexados." },
+  "optFileAccessOff": { "message": "Desativado: os downloads aparecem, mas não podem ser anexados." }
+}

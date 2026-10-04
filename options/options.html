@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="pt-BR">
+<html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Easy Upload: opções</title>
+  <title data-i18n="optionsTitle">Easy Upload</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
@@ -11,39 +11,35 @@
     <h1>Easy Upload</h1>
 
     <section class="card">
-      <h2>Geral</h2>
+      <h2 data-i18n="optGeneral"></h2>
       <label class="row">
-        <span>Downloads exibidos</span>
+        <span data-i18n="optDownloadsLimit"></span>
         <input id="downloadsLimit" type="number" min="1" max="30" step="1">
       </label>
       <label class="row">
-        <span>Mostrar área de transferência</span>
+        <span data-i18n="optClipboard"></span>
         <input id="clipboardEnabled" type="checkbox">
       </label>
       <label class="row">
-        <span>Tamanho máximo por arquivo (MB)</span>
+        <span data-i18n="optMaxSize"></span>
         <input id="maxFileMB" type="number" min="1" max="2000" step="1">
       </label>
       <label class="stack">
-        <span>Sites excluídos <small>(um domínio por linha; inclui subdomínios)</small></span>
-        <textarea id="excludedSites" rows="5" spellcheck="false" placeholder="exemplo.com&#10;docs.google.com"></textarea>
+        <span><span data-i18n="optExcluded"></span> <small data-i18n="optExcludedHint"></small></span>
+        <textarea id="excludedSites" rows="5" spellcheck="false" placeholder="example.com&#10;docs.google.com"></textarea>
       </label>
       <label class="row">
-        <span>Modo debug <small>(registra no console da página por que cada clique foi ou não interceptado)</small></span>
+        <span><span data-i18n="optDebug"></span> <small data-i18n="optDebugHint"></small></span>
         <input id="debug" type="checkbox">
       </label>
       <p id="saved" class="hint" aria-live="polite"></p>
     </section>
 
     <section class="card">
-      <h2>Acesso a arquivos baixados</h2>
-      <p id="fileAccess" class="status">Verificando…</p>
-      <p class="hint">
-        Necessário para ler o conteúdo dos downloads. Ative em
-        <code>chrome://extensions</code> → Easy Upload → Detalhes →
-        <b>Permitir acesso a URLs de arquivo</b>.
-      </p>
-      <button id="openExtensions" type="button">Abrir detalhes da extensão</button>
+      <h2 data-i18n="optFileAccessTitle"></h2>
+      <p id="fileAccess" class="status" data-i18n="optChecking"></p>
+      <p class="hint" data-i18n="optFileAccessHint"></p>
+      <button id="openExtensions" type="button" data-i18n="optOpenDetails"></button>
     </section>
   </main>
   <script src="options.js"></script>

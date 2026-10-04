@@ -13,6 +13,7 @@ Inspirado no recurso "Easy Files" do Opera, para navegadores baseados em Chromiu
 - **Seletor do sistema a um clique**, pelo botão "Escolher do computador".
 - Funciona em sites como WhatsApp Web, X, Gmail e em uploads dentro de iframes e janelas modais.
 - Tema claro e escuro, de acordo com o sistema.
+- Em português e inglês, de acordo com o idioma do navegador.
 - Sem dependências e sem build: HTML, CSS e JavaScript puros.
 
 ## Instalação
@@ -83,6 +84,7 @@ O Easy Upload não envia nada para lugar nenhum. Não faz requisições de rede,
 | `background.js` | Service worker: consulta os downloads e coordena os outros contextos. |
 | `offscreen.html`, `offscreen.js` | Lê o clipboard e os arquivos baixados e gera as miniaturas. |
 | `options/` | Página de opções. |
+| `_locales/` | Textos da interface em inglês (padrão) e português. Para adicionar um idioma, copie `_locales/en/messages.json` para `_locales/<código>/messages.json` e traduza. |
 
 Detalhes que valem saber antes de mexer no código:
 

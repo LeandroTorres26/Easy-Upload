@@ -1,0 +1,77 @@
+{
+  "extName": { "message": "Easy Upload" },
+  "extDescription": { "message": "Attach files without opening the file picker: pick from your clipboard or recent downloads when you click any upload field." },
+
+  "popupTitle": { "message": "Upload file" },
+  "popupTitleMultiple": { "message": "Upload files" },
+  "options": { "message": "Options" },
+  "close": { "message": "Close" },
+  "closeEsc": { "message": "Close (Esc)" },
+  "sectionClipboard": { "message": "Clipboard" },
+  "sectionDownloads": { "message": "Recent downloads" },
+  "chooseFromComputer": { "message": "Choose from computer…" },
+  "attach": { "message": "Attach" },
+  "attachCount": {
+    "message": "Attach ($COUNT$)",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "loading": { "message": "Loading…" },
+  "loadingMany": {
+    "message": "Loading $COUNT$ files…",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "unavailable": { "message": "Unavailable." },
+  "errorGeneric": {
+    "message": "Error: $ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "errorTalkingToExtension": {
+    "message": "Couldn't reach the extension: $ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "clipboardEmpty": { "message": "No image, file or text in the clipboard." },
+  "clipboardUnreadable": { "message": "Couldn't read the clipboard." },
+  "clipboardNotAccepted": {
+    "message": "The clipboard content isn't accepted by this field ($ACCEPT$).",
+    "placeholders": { "accept": { "content": "$1" } }
+  },
+  "downloadsNone": { "message": "No recent downloads." },
+  "downloadsNoneCompatible": {
+    "message": "No compatible recent downloads ($ACCEPT$).",
+    "placeholders": { "accept": { "content": "$1" } }
+  },
+  "fileAccessNeeded": { "message": "To attach downloads, turn on \"Allow access to file URLs\" in the extension details." },
+  "fileAccessMaybeOff": { "message": "No download could be read. Check that \"Allow access to file URLs\" is on." },
+  "fileAccessRequired": { "message": "Requires access to file URLs" },
+  "openSettings": { "message": "Open settings" },
+  "tooLarge": {
+    "message": "Larger than the $SIZE$ MB limit",
+    "placeholders": { "size": { "content": "$1" } }
+  },
+  "clickFieldAgain": { "message": "Click the field again to open the system file picker." },
+
+  "errNoResponse": { "message": "No response from the extension." },
+  "errConnectionLost": { "message": "Lost connection to the extension." },
+  "errFieldGone": { "message": "The upload field is no longer available." },
+  "errFrameNoResponse": { "message": "The upload field's frame didn't respond." },
+  "errItemGone": { "message": "This item is no longer available. Reopen the popup." },
+  "errTooLarge": { "message": "The file is larger than the configured limit." },
+  "errReadFailed": { "message": "Couldn't read the file (it was removed, or \"Allow access to file URLs\" is off)." },
+
+  "optionsTitle": { "message": "Easy Upload: options" },
+  "optGeneral": { "message": "General" },
+  "optDownloadsLimit": { "message": "Downloads shown" },
+  "optClipboard": { "message": "Show clipboard" },
+  "optMaxSize": { "message": "Max file size (MB)" },
+  "optExcluded": { "message": "Excluded sites" },
+  "optExcludedHint": { "message": "(one domain per line; includes subdomains)" },
+  "optDebug": { "message": "Debug mode" },
+  "optDebugHint": { "message": "(logs to the page console why each click was or wasn't intercepted)" },
+  "optSaved": { "message": "Saved." },
+  "optFileAccessTitle": { "message": "Access to downloaded files" },
+  "optChecking": { "message": "Checking…" },
+  "optFileAccessHint": { "message": "Needed to attach downloads. Turn it on in chrome://extensions → Easy Upload → Details → Allow access to file URLs." },
+  "optOpenDetails": { "message": "Open extension details" },
+  "optFileAccessOn": { "message": "On: downloads can be attached." },
+  "optFileAccessOff": { "message": "Off: downloads are listed but can't be attached." }
+}

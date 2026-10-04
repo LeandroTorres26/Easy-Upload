@@ -2,6 +2,10 @@
 
 const DEFAULTS = { downloadsLimit: 8, clipboardEnabled: true, excludedSites: [], maxFileMB: 100, debug: false };
 const $ = (id) => document.getElementById(id);
+const t = (key) => chrome.i18n.getMessage(key) || key;
+
+document.documentElement.lang = chrome.i18n.getUILanguage();
+for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
 
 // ---------- Configurações ----------
 
@@ -30,7 +34,7 @@ async function save() {
       .map((s) => s.trim())
       .filter(Boolean),
   });
-  $('saved').textContent = 'Salvo.';
+  $('saved').textContent = t('optSaved');
   clearTimeout(savedTimer);
   savedTimer = setTimeout(() => ($('saved').textContent = ''), 1500);
 }
@@ -44,7 +48,7 @@ for (const id of ['downloadsLimit', 'clipboardEnabled', 'maxFileMB', 'excludedSi
 async function checkFileAccess() {
   const el = $('fileAccess');
   const allowed = await chrome.extension.isAllowedFileSchemeAccess();
-  el.textContent = allowed ? 'Ativado: os downloads podem ser anexados.' : 'Desativado: os downloads aparecem, mas não podem ser anexados.';
+  el.textContent = t(allowed ? 'optFileAccessOn' : 'optFileAccessOff');
   el.className = `status ${allowed ? 'ok' : 'bad'}`;
 }
 

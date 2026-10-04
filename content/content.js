@@ -18,7 +18,7 @@
   document.addEventListener(
     TAKEOVER_EVENT,
     () => {
-      closePopup('substituído por uma nova instância da extensão');
+      closePopup('replaced by a new extension instance');
       lifetime.abort();
     },
     { signal }
@@ -44,6 +44,14 @@
   const rectWaiters = new Map(); // (frame principal) requestId -> { rect } | { resolve }
   const actions = new WeakMap(); // botão do popup -> ação
 
+  const LANG = chrome.i18n.getUILanguage();
+  const t = (key, ...subs) => chrome.i18n.getMessage(key, subs.map(String)) || key;
+  // Erros que cruzam contextos carregam a chave da mensagem (o offscreen não tem chrome.i18n).
+  const errorText = (err) => {
+    const msg = String(err?.message || err || '');
+    return (/^\w+$/.test(msg) && chrome.i18n.getMessage(msg)) || msg;
+  };
+
   function dbg(...args) {
     if (settings.debug) console.debug('[Easy Upload]', ...args);
   }
@@ -56,7 +64,7 @@
     .catch(() => {})
     .finally(() => {
       settingsReady = true;
-      dbg('ativo em', location.href, IS_TOP ? '(frame principal)' : '(iframe)', isExcluded() ? '— site excluído' : '');
+      dbg('active on', location.href, IS_TOP ? '(top frame)' : '(iframe)', isExcluded() ? '— excluded site' : '');
     });
 
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -97,12 +105,12 @@
   }
 
   function ineligibleReason(input) {
-    if (input.disabled) return 'input desabilitado';
-    if (input.webkitdirectory) return 'seleção de pasta (webkitdirectory)';
-    if (!settingsReady) return 'configurações ainda não carregadas';
-    if (!extensionAlive()) return 'extensão foi recarregada; recarregue a página';
-    if (isExcluded()) return 'site excluído nas opções';
-    if (!navigator.userActivation?.isActive) return 'sem user activation (o navegador também não abriria o seletor)';
+    if (input.disabled) return 'input is disabled';
+    if (input.webkitdirectory) return 'folder picker (webkitdirectory)';
+    if (!settingsReady) return 'settings not loaded yet';
+    if (!extensionAlive()) return 'extension was reloaded; reload the page';
+    if (isExcluded()) return 'site excluded in options';
+    if (!navigator.userActivation?.isActive) return 'no user activation (the browser would not open the picker either)';
     return '';
   }
 
@@ -112,20 +120,20 @@
     if (bypass || input?.localName !== 'input' || input.type !== 'file') return false;
     if (input === passThroughOnce) {
       passThroughOnce = null;
-      dbg(via, '→ liberado para o seletor nativo', input);
+      dbg(via, '→ passed through to the native picker', input);
       return false;
     }
     const reason = ineligibleReason(input);
     if (reason) {
-      dbg(via, '→ não interceptado:', reason, input);
+      dbg(via, '→ not intercepted:', reason, input);
       return false;
     }
-    dbg(via, '→ interceptado', input);
+    dbg(via, '→ intercepted', input);
     try {
       showFor(input);
     } catch (err) {
       // Melhor abrir o seletor nativo do que engolir o clique.
-      console.error('[Easy Upload] erro ao abrir o popup; usando o seletor nativo:', err);
+      console.error('[Easy Upload] failed to open the popup; using the native picker:', err);
       return false;
     }
     return true;
@@ -135,7 +143,7 @@
   window.addEventListener(
     'click',
     (e) => {
-      if (tryIntercept(e.composedPath()[0], 'clique no input')) e.preventDefault();
+      if (tryIntercept(e.composedPath()[0], 'click on input')) e.preventDefault();
     },
     { capture: true, signal }
   );
@@ -145,7 +153,7 @@
     INTERCEPT_EVENT,
     (e) => {
       const via = e.detail === 2 ? 'input.showPicker()' : 'input.click()';
-      if (!e.relatedTarget) return dbg(via, '→ evento do MAIN world chegou sem o input');
+      if (!e.relatedTarget) return dbg(via, '→ MAIN world event arrived without the input');
       if (tryIntercept(e.relatedTarget, via)) e.preventDefault();
     },
     { capture: true, signal }
@@ -155,7 +163,7 @@
     'pointerdown',
     (e) => {
       lastPointer = { x: e.clientX, y: e.clientY };
-      if (popup && e.composedPath()[0] !== popup.host) closePopup('clique fora');
+      if (popup && e.composedPath()[0] !== popup.host) closePopup('click outside');
       closeRemotePopup();
     },
     { capture: true, signal }
@@ -209,20 +217,20 @@
   }
 
   function fillInput(input, files) {
-    if (!input.isConnected) dbg('aviso: o input não está no DOM; a página pode não perceber a mudança', input);
+    if (!input.isConnected) dbg('warning: input is not in the DOM; the page may not notice the change', input);
     const dt = new DataTransfer();
     for (const file of files) dt.items.add(file);
     input.files = dt.files;
     input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    dbg('preenchido com', files.map((f) => f.name), input);
+    dbg('filled with', files.map((f) => f.name), input);
   }
 
   // ---------- Comunicação ----------
 
   async function sendToSW(msg) {
     const res = await chrome.runtime.sendMessage({ target: 'sw', ...msg });
-    if (!res || res.error) throw new Error(res?.error || 'Sem resposta do service worker.');
+    if (!res || res.error) throw new Error(res?.error || 'errNoResponse');
     return res;
   }
 
@@ -246,7 +254,7 @@
       port.onDisconnect.addListener(() => {
         void chrome.runtime.lastError;
         port = null;
-        for (const p of pending.values()) p.reject(new Error('Conexão com a extensão perdida.'));
+        for (const p of pending.values()) p.reject(new Error('errConnectionLost'));
         pending.clear();
       });
     }
@@ -343,9 +351,9 @@
     remoteInputs.set(requestId, input);
     const r = anchorRect(input);
     window.parent.postMessage({ [RECT_MESSAGE]: 1, requestId, rect: r && { x: r.left, y: r.top, w: r.width, h: r.height } }, '*');
-    dbg('frame pequeno: abrindo o popup no frame principal', requestId);
+    dbg('small frame: opening the popup in the top frame', requestId);
     sendToSW({ type: 'openInTop', requestId, accept: input.accept, multiple: input.multiple }).catch((err) => {
-      dbg('falha ao abrir no frame principal; abrindo aqui mesmo:', err.message);
+      dbg('failed to open in the top frame; opening here instead:', err.message);
       remoteInputs.delete(requestId);
       openPopup(localTarget(input));
     });
@@ -398,7 +406,7 @@
 
   async function handleFrameCommand(msg) {
     const input = remoteInputs.get(msg.requestId);
-    if (!input) throw new Error('O campo de upload não está mais disponível.');
+    if (!input) throw new Error('errFieldGone');
     if (msg.cmd === 'deliver') {
       fillInput(input, await loadFiles(msg.items));
       remoteInputs.delete(msg.requestId);
@@ -415,7 +423,7 @@
       passThroughOnce = input;
       return { ok: true, needsClick: true };
     }
-    throw new Error(`Comando desconhecido: ${msg.cmd}`);
+    throw new Error(`Unknown command: ${msg.cmd}`);
   }
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -426,7 +434,7 @@
         waitRect(msg.requestId).then((rect) => openPopup(remoteTarget({ ...msg, rect })));
         return false;
       case 'eu:close':
-        if (popup?.requestId && popup.requestId === msg.requestId) closePopup('clique no iframe');
+        if (popup?.requestId && popup.requestId === msg.requestId) closePopup('click in iframe');
         sendResponse({ ok: true });
         return false;
       case 'eu:command':
@@ -447,10 +455,10 @@
       n /= 1024;
       i++;
     }
-    return `${n.toLocaleString('pt-BR', { maximumFractionDigits: n < 10 && i > 0 ? 1 : 0 })} ${units[i]}`;
+    return `${n.toLocaleString(LANG, { maximumFractionDigits: n < 10 && i > 0 ? 1 : 0 })} ${units[i]}`;
   }
 
-  const rtf = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' });
+  const rtf = new Intl.RelativeTimeFormat(LANG, { numeric: 'auto' });
   function formatWhen(iso) {
     const t = new Date(iso).getTime();
     if (!t) return '';
@@ -464,7 +472,7 @@
     for (const [limit, unit, div = 1] of steps) {
       if (Math.abs(diff) < limit) return rtf.format(Math.round(diff / div), unit);
     }
-    return new Date(t).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    return new Date(t).toLocaleDateString(LANG, { day: '2-digit', month: 'short' });
   }
 
   function glyphFor(type, kind) {
@@ -541,7 +549,7 @@
       if (p.host.matches(':popover-open')) p.host.hidePopover();
     } catch {}
     p.host.remove();
-    dbg('popup fechado:', reason || 'concluído');
+    dbg('popup closed:', reason || 'done');
   }
 
   function pickContainer(input) {
@@ -569,7 +577,7 @@
   }
 
   function openPopup(target) {
-    closePopup('substituído');
+    closePopup('replaced');
     popup = createPopup(target);
   }
 
@@ -596,8 +604,8 @@
     const downloadsList = h('div', { class: 'list' }, skeleton(3));
     const banner = h('div', { class: 'banner', hidden: true });
     const status = h('div', { class: 'status', role: 'status' });
-    const attachBtn = h('button', { class: 'btn primary', hidden: !multiple, disabled: true, onclick: () => attachSelected() }, 'Anexar');
-    const nativeBtn = h('button', { class: multiple ? 'btn' : 'btn primary', onclick: () => chooseNative() }, 'Escolher do computador…');
+    const attachBtn = h('button', { class: 'btn primary', hidden: !multiple, disabled: true, onclick: () => attachSelected() }, t('attach'));
+    const nativeBtn = h('button', { class: multiple ? 'btn' : 'btn primary', onclick: () => chooseNative() }, t('chooseFromComputer'));
 
     const acceptLabel = Accept.isRestrictive(acceptTokens) ? target.accept.replace(/\s*,\s*/g, ', ') : '';
     const panel = h(
@@ -606,17 +614,17 @@
       h(
         'header',
         {},
-        h('span', { class: 'title' }, multiple ? 'Enviar arquivos' : 'Enviar arquivo'),
+        h('span', { class: 'title' }, multiple ? t('popupTitleMultiple') : t('popupTitle')),
         acceptLabel && h('span', { class: 'chip', title: `accept="${target.accept}"` }, acceptLabel),
         h('span', { class: 'spacer' }),
-        h('button', { class: 'icon', title: 'Opções', 'aria-label': 'Opções', onclick: () => sendToSW({ type: 'openOptions' }).catch(() => {}) }, '⚙'),
-        h('button', { class: 'icon', title: 'Fechar (Esc)', 'aria-label': 'Fechar', onclick: () => closePopup('botão fechar') }, '✕')
+        h('button', { class: 'icon', title: t('options'), 'aria-label': t('options'), onclick: () => sendToSW({ type: 'openOptions' }).catch(() => {}) }, '⚙'),
+        h('button', { class: 'icon', title: t('closeEsc'), 'aria-label': t('close'), onclick: () => closePopup('close button') }, '✕')
       ),
       h(
         'div',
         { class: 'body' },
-        settings.clipboardEnabled && h('section', {}, h('h3', {}, 'Área de transferência'), clipboardList),
-        h('section', {}, h('h3', {}, 'Downloads recentes'), banner, downloadsList)
+        settings.clipboardEnabled && h('section', {}, h('h3', {}, t('sectionClipboard')), clipboardList),
+        h('section', {}, h('h3', {}, t('sectionDownloads')), banner, downloadsList)
       ),
       status,
       h('footer', {}, nativeBtn, attachBtn)
@@ -643,7 +651,7 @@
     };
     reposition();
     important('visibility', 'visible');
-    dbg('popup aberto', target.requestId ? `(para iframe, ${target.requestId})` : '');
+    dbg('popup opened', target.requestId ? `(for iframe ${target.requestId})` : '');
     loadData();
     return state;
 
@@ -677,9 +685,9 @@
       try {
         prep = await sendToSW({ type: 'prepare' });
       } catch (err) {
-        clipboardList.replaceChildren(empty('Indisponível.'));
-        downloadsList.replaceChildren(empty('Indisponível.'));
-        setStatus(`Erro ao falar com a extensão: ${err.message}`, true);
+        clipboardList.replaceChildren(empty(t('unavailable')));
+        downloadsList.replaceChildren(empty(t('unavailable')));
+        setStatus(t('errorTalkingToExtension', errorText(err)), true);
         return;
       }
       if (state.closed) return;
@@ -692,12 +700,12 @@
         if (state.closed) return;
         const all = res.items.map((it) => ({ ...it, source: 'clipboard' }));
         const items = all.filter(isAccepted);
-        let message = 'Nenhuma imagem, arquivo ou texto no clipboard.';
-        if (!res.ok) message = 'Não foi possível ler o clipboard.';
-        else if (all.length) message = `O conteúdo do clipboard não é aceito por este campo (${acceptLabel}).`;
+        let message = t('clipboardEmpty');
+        if (!res.ok) message = t('clipboardUnreadable');
+        else if (all.length) message = t('clipboardNotAccepted', acceptLabel);
         clipboardList.replaceChildren(...(items.length ? items.map((it) => renderItem(it)) : [empty(message)]));
       } catch (err) {
-        clipboardList.replaceChildren(empty(`Erro: ${err.message}`));
+        clipboardList.replaceChildren(empty(t('errorGeneric', errorText(err))));
       }
       reposition();
     }
@@ -706,18 +714,18 @@
       try {
         const { items: candidates, scanned } = await sendToSW({ type: 'downloads', accept: target.accept });
         if (state.closed) return;
-        const noneMessage = Accept.isRestrictive(acceptTokens) ? `Nenhum download recente compatível (${acceptLabel}).` : 'Nenhum download recente.';
+        const noneMessage = Accept.isRestrictive(acceptTokens) ? t('downloadsNoneCompatible', acceptLabel) : t('downloadsNone');
         const withIcons = async (list) => {
           const { icons } = await sendToSW({ type: 'icons', ids: list.map((d) => d.id) }).catch(() => ({ icons: {} }));
           return list.map((d) => ({ ...d, icon: icons[d.id] || null }));
         };
 
         if (fileAccess === false) {
-          showFileAccessBanner('Para anexar downloads, ative "Permitir acesso a URLs de arquivo" nos detalhes da extensão.');
+          showFileAccessBanner(t('fileAccessNeeded'));
           const shown = await withIcons(candidates.slice(0, limit));
           if (state.closed) return;
           downloadsList.replaceChildren(
-            ...(shown.length ? shown.map((d) => renderItem(toDownloadItem(d), 'Requer acesso a URLs de arquivo')) : [empty(noneMessage)])
+            ...(shown.length ? shown.map((d) => renderItem(toDownloadItem(d), t('fileAccessRequired'))) : [empty(noneMessage)])
           );
           return;
         }
@@ -736,7 +744,7 @@
           checked += batch.length;
           batch.forEach((d, j) => results[j].exists && found.push(d));
         }
-        dbg(`downloads: ${scanned} no histórico, ${candidates.length} compatíveis, ${checked} verificados, ${found.length} existem no disco`);
+        dbg(`downloads: ${scanned} in history, ${candidates.length} compatible, ${checked} checked, ${found.length} exist on disk`);
 
         const shown = found.slice(0, limit);
         const [{ results: thumbs }, iconed] = await Promise.all([
@@ -750,11 +758,11 @@
         const existing = iconed.map((d, i) => ({ ...toDownloadItem(d), thumb: thumbs[i]?.thumb || null }));
 
         if (!existing.length && candidates.length && fileAccess == null) {
-          showFileAccessBanner('Nenhum download pôde ser lido. Verifique se "Permitir acesso a URLs de arquivo" está ativado.');
+          showFileAccessBanner(t('fileAccessMaybeOff'));
         }
         downloadsList.replaceChildren(...(existing.length ? existing.map((d) => renderItem(d)) : [empty(noneMessage)]));
       } catch (err) {
-        downloadsList.replaceChildren(empty(`Erro: ${err.message}`));
+        downloadsList.replaceChildren(empty(t('errorGeneric', errorText(err))));
       }
       reposition();
     }
@@ -777,7 +785,7 @@
     function showFileAccessBanner(text) {
       banner.replaceChildren(
         h('span', {}, text),
-        h('button', { class: 'link', onclick: () => sendToSW({ type: 'openExtensionsPage' }).catch(() => {}) }, 'Abrir configurações')
+        h('button', { class: 'link', onclick: () => sendToSW({ type: 'openExtensionsPage' }).catch(() => {}) }, t('openSettings'))
       );
       banner.hidden = false;
     }
@@ -786,7 +794,7 @@
 
     function renderItem(item, forcedDisabledReason) {
       let reason = forcedDisabledReason || '';
-      if (!reason && item.size > maxBytes()) reason = `Maior que o limite de ${settings.maxFileMB} MB`;
+      if (!reason && item.size > maxBytes()) reason = t('tooLarge', settings.maxFileMB);
 
       const sub = [item.kind === 'text' ? item.preview : null, formatBytes(item.size), item.when ? formatWhen(item.when) : null].filter(Boolean);
 
@@ -812,7 +820,7 @@
         else selected.set(item.key, item);
         btn.setAttribute('aria-pressed', String(selected.has(item.key)));
         attachBtn.disabled = selected.size === 0;
-        attachBtn.textContent = selected.size ? `Anexar (${selected.size})` : 'Anexar';
+        attachBtn.textContent = selected.size ? t('attachCount', selected.size) : t('attach');
         return;
       }
       btn.classList.add('loading');
@@ -826,12 +834,12 @@
     }
 
     async function deliver(items) {
-      setStatus(items.length > 1 ? `Carregando ${items.length} arquivos…` : 'Carregando…');
+      setStatus(items.length > 1 ? t('loadingMany', items.length) : t('loading'));
       try {
         await target.deliver(items);
         if (!state.closed) closePopup();
       } catch (err) {
-        setStatus(err.message, true);
+        setStatus(errorText(err), true);
       }
     }
 
@@ -839,10 +847,10 @@
       try {
         const res = await target.openNative();
         if (state.closed) return;
-        if (res?.needsClick) setStatus('Clique no campo de novo para abrir o seletor do sistema.');
-        else closePopup('seletor nativo');
+        if (res?.needsClick) setStatus(t('clickFieldAgain'));
+        else closePopup('native picker');
       } catch (err) {
-        setStatus(err.message, true);
+        setStatus(errorText(err), true);
       }
     }
 

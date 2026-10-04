@@ -20,7 +20,7 @@ async function ensureOffscreen() {
     .createDocument({
       url: OFFSCREEN_PATH,
       reasons: ['CLIPBOARD', 'BLOBS'],
-      justification: 'Ler o clipboard e os arquivos baixados para oferecê-los em campos de upload.',
+      justification: 'Read the clipboard and downloaded files to offer them in upload fields.',
     })
     .catch(async (err) => {
       // Duas chamadas simultâneas: a segunda falha, mas o documento existe.
@@ -88,7 +88,7 @@ async function getIcons(ids) {
 }
 
 function toFrame(sender, frameId, message) {
-  if (!sender.tab) throw new Error('Mensagem fora de uma aba.');
+  if (!sender.tab) throw new Error('Message did not come from a tab.');
   return chrome.tabs.sendMessage(sender.tab.id, message, { frameId });
 }
 
@@ -114,7 +114,7 @@ async function handle(msg, sender) {
         cmd: msg.cmd,
         items: msg.items,
       });
-      if (!res) throw new Error('O frame do campo de upload não respondeu.');
+      if (!res) throw new Error('errFrameNoResponse');
       if (res.error) throw new Error(res.error);
       return res;
     }
@@ -132,7 +132,7 @@ async function handle(msg, sender) {
       await chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
       return { ok: true };
     default:
-      throw new Error(`Mensagem desconhecida: ${msg.type}`);
+      throw new Error(`Unknown message: ${msg.type}`);
   }
 }
 

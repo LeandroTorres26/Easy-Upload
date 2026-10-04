@@ -41,13 +41,13 @@ async function handle(port, msg) {
         msg.source === 'clipboard'
           ? clipboardCache.get(msg.key)
           : await readFileUrl(pathToFileUrl(msg.path));
-      if (!blob) throw new Error('O item não está mais disponível. Reabra o popup.');
-      if (msg.maxBytes && blob.size > msg.maxBytes) throw new Error('Arquivo maior que o limite configurado.');
+      if (!blob) throw new Error('errItemGone');
+      if (msg.maxBytes && blob.size > msg.maxBytes) throw new Error('errTooLarge');
       await streamBlob(port, id, blob);
       return post(port, { id, done: true, size: blob.size });
     }
     default:
-      throw new Error(`Operação desconhecida: ${msg.op}`);
+      throw new Error(`Unknown operation: ${msg.op}`);
   }
 }
 
@@ -188,10 +188,10 @@ function readFileUrl(url) {
     xhr.responseType = 'arraybuffer';
     xhr.onload = () => {
       if (xhr.response) resolve(new Blob([xhr.response]));
-      else reject(new Error('Leitura vazia.'));
+      else reject(new Error('errReadFailed'));
     };
     xhr.onerror = () =>
-      reject(new Error('Não foi possível ler o arquivo (removido, ou "Permitir acesso a URLs de arquivo" desativado).'));
+      reject(new Error('errReadFailed'));
     xhr.send();
   });
 }
@@ -253,6 +253,6 @@ function blobToBase64(blob) {
 async function streamBlob(port, id, blob) {
   for (let offset = 0; offset < blob.size; offset += CHUNK_SIZE) {
     const chunk = await blobToBase64(blob.slice(offset, offset + CHUNK_SIZE));
-    if (!post(port, { id, chunk })) throw new Error('Conexão encerrada.');
+    if (!post(port, { id, chunk })) throw new Error('errConnectionLost');
   }
 }
