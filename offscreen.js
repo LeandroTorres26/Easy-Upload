@@ -20,6 +20,9 @@ let clipboardCache = new Map(); // key -> File (válido até a próxima leitura)
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== PORT_NAME) return;
+  // A página do outro lado pode navegar ou ir para o back/forward cache; o Chrome
+  // fecha o Port e registra um erro "Unchecked runtime.lastError" se ninguém o ler.
+  port.onDisconnect.addListener(() => void chrome.runtime.lastError);
   port.onMessage.addListener((msg) => {
     handle(port, msg).catch((err) => post(port, { id: msg.id, error: String(err?.message || err) }));
   });
