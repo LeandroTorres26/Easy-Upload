@@ -1,0 +1,266 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Easy Upload: store screenshot</title>
+<!-- Gera as capturas da Chrome Web Store: screenshot.html?shot=1|2|3&lang=en|pt -->
+<script src="../../content/popup-css.js"></script>
+<style>
+  :root {
+    --bg1: #eef3ff; --bg2: #dbe6ff; --ink: #14171f; --ink-soft: #4a5468;
+    --page: #ffffff; --page-ink: #1d2433; --page-muted: #6b7489; --line: #e3e7ef;
+    --chrome: #f1f3f7; --chrome-line: #d9dde6; --accent: #2563eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg1: #10131c; --bg2: #1b2233; --ink: #f2f4fa; --ink-soft: #a9b1c4;
+      --page: #171a21; --page-ink: #e9ecf3; --page-muted: #9aa3b5; --line: #2a2f3a;
+      --chrome: #22262f; --chrome-line: #323743; --accent: #5b8cff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1280px; height: 800px; overflow: hidden; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: radial-gradient(1200px 700px at 85% 10%, var(--bg2), var(--bg1));
+    color: var(--ink);
+    display: grid; grid-template-columns: 420px 1fr; align-items: center;
+  }
+  .pitch { padding: 0 24px 0 72px; }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 18px; color: var(--ink-soft); margin-bottom: 28px; }
+  .brand img { width: 40px; height: 40px; }
+  h1 { font-size: 44px; line-height: 1.12; margin: 0 0 18px; letter-spacing: -0.02em; }
+  .pitch p { font-size: 19px; line-height: 1.5; color: var(--ink-soft); margin: 0; }
+
+  .window {
+    width: 780px; height: 716px; border-radius: 14px; overflow: hidden; position: relative;
+    background: var(--page); border: 1px solid var(--chrome-line);
+    box-shadow: 0 30px 70px rgba(20, 30, 60, .22), 0 4px 14px rgba(20, 30, 60, .08);
+  }
+  .chrome { height: 46px; background: var(--chrome); border-bottom: 1px solid var(--chrome-line); display: flex; align-items: center; gap: 14px; padding: 0 16px; }
+  .dots { display: flex; gap: 7px; }
+  .dots i { width: 11px; height: 11px; border-radius: 50%; background: var(--chrome-line); display: block; }
+  .url { flex: 1; height: 28px; border-radius: 14px; background: var(--page); border: 1px solid var(--chrome-line); color: var(--page-muted); font-size: 13px; display: flex; align-items: center; padding: 0 14px; }
+
+  .site { color: var(--page-ink); padding: 26px 40px; }
+  .site-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 18px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+  .logo { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+  .logo b { width: 26px; height: 26px; border-radius: 7px; background: #f59e0b; display: inline-block; }
+  .nav { display: flex; gap: 22px; color: var(--page-muted); font-size: 14px; }
+  h2 { font-size: 22px; margin: 0 0 18px; }
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--page-muted); margin: 0 0 6px; }
+  .field { height: 38px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 16px; padding: 9px 12px; font-size: 14px; }
+  .area { height: 84px; }
+  .attach-row { display: flex; align-items: center; gap: 12px; }
+  .attach-btn { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--accent); color: var(--accent); font-weight: 600; font-size: 14px; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .hint { color: var(--page-muted); font-size: 13px; }
+
+  #popup-host { position: absolute; }
+</style>
+</head>
+<body>
+  <div class="pitch">
+    <div class="brand"><img src="../../icons/icon128.png" alt=""> Easy Upload</div>
+    <h1 id="title"></h1>
+    <p id="subtitle"></p>
+  </div>
+
+  <div class="window">
+    <div class="chrome">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <div class="url">support.acme.example/tickets/new</div>
+    </div>
+    <div class="site">
+      <div class="site-head">
+        <div class="logo"><b></b> Acme Support</div>
+        <div class="nav"><span id="nav1"></span><span id="nav2"></span><span id="nav3"></span></div>
+      </div>
+      <h2 id="formTitle"></h2>
+      <label id="lblFiles"></label>
+      <div class="attach-row">
+        <span class="attach-btn" id="attachBtn"></span>
+        <span class="hint" id="fileHint"></span>
+      </div>
+      <label id="lblSubject" style="margin-top: 22px"></label>
+      <div class="field" id="subject"></div>
+      <label id="lblMessage"></label>
+      <div class="field area"></div>
+    </div>
+    <div id="popup-host"></div>
+  </div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const shot = Number(params.get('shot') || 1);
+  const lang = params.get('lang') === 'pt' ? 'pt' : 'en';
+
+  const TEXT = {
+    en: {
+      titles: ['Attach files in one click', 'Only what the field accepts', 'Pick several files at once'],
+      subtitles: [
+        'Your clipboard and recent downloads appear the moment you click an upload field.',
+        'An image field shows only images. PDFs only? Then you see only PDFs.',
+        'Select multiple items and attach them together. Light and dark theme included.',
+      ],
+      nav: ['Help center', 'My tickets', 'Account'],
+      formTitle: 'Open a ticket', subject: 'Subject', subjectValue: 'Invoice charged twice',
+      message: 'Message', files: 'Attachments', attachBtn: '📎 Add files', fileHint: ['Any file type', 'Images only', 'Up to 10 files'],
+      popupTitle: 'Upload file', popupTitleMultiple: 'Upload files',
+      clipboard: 'Clipboard', downloads: 'Recent downloads', choose: 'Choose from computer…', attach: 'Attach', attachN: (n) => `Attach (${n})`,
+      ago: { m2: '2 minutes ago', m15: '15 minutes ago', h1: '1 hour ago', h3: '3 hours ago', y: 'yesterday', d2: '2 days ago' },
+      dec: '.',
+    },
+    pt: {
+      titles: ['Anexe arquivos com um clique', 'Só o que o campo aceita', 'Vários arquivos de uma vez'],
+      subtitles: [
+        'O clipboard e os downloads recentes aparecem assim que você clica num campo de upload.',
+        'Campo de imagem mostra só imagens. Só aceita PDF? Então só aparecem PDFs.',
+        'Selecione vários itens e anexe todos juntos. Com tema claro e escuro.',
+      ],
+      nav: ['Central de ajuda', 'Meus chamados', 'Conta'],
+      formTitle: 'Abrir um chamado', subject: 'Assunto', subjectValue: 'Fatura cobrada duas vezes',
+      message: 'Mensagem', files: 'Anexos', attachBtn: '📎 Adicionar arquivos', fileHint: ['Qualquer tipo de arquivo', 'Somente imagens', 'Até 10 arquivos'],
+      popupTitle: 'Enviar arquivo', popupTitleMultiple: 'Enviar arquivos',
+      clipboard: 'Área de transferência', downloads: 'Downloads recentes', choose: 'Escolher do computador…', attach: 'Anexar', attachN: (n) => `Anexar (${n})`,
+      ago: { m2: 'há 2 minutos', m15: 'há 15 minutos', h1: 'há 1 hora', h3: 'há 3 horas', y: 'ontem', d2: 'há 2 dias' },
+      dec: ',',
+    },
+  }[lang];
+
+  // ---------- Miniaturas desenhadas em canvas ----------
+  function thumb(draw) {
+    const c = document.createElement('canvas');
+    c.width = 160; c.height = 120;
+    draw(c.getContext('2d'), 160, 120);
+    return c.toDataURL('image/png');
+  }
+  const thumbs = {
+    screenshot: thumb((g, w, h) => {
+      g.fillStyle = '#f4f6fb'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#2563eb'; g.fillRect(0, 0, w, 18);
+      g.fillStyle = '#d6dbe7'; for (let i = 0; i < 5; i++) g.fillRect(14, 30 + i * 16, 60 + (i % 3) * 20, 8);
+      g.fillStyle = '#ffffff'; g.fillRect(100, 30, 46, 74);
+      g.strokeStyle = '#d6dbe7'; g.strokeRect(100.5, 30.5, 45, 73);
+      g.fillStyle = '#ef4444'; g.fillRect(108, 40, 30, 8);
+    }),
+    photo: thumb((g, w, h) => {
+      const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#7cc4ff'); sky.addColorStop(1, '#ffd7a8');
+      g.fillStyle = sky; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#fff3c4'; g.beginPath(); g.arc(118, 36, 14, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#3f7d5a'; g.beginPath(); g.moveTo(0, 96); g.lineTo(50, 54); g.lineTo(96, 92); g.lineTo(130, 66); g.lineTo(160, 90); g.lineTo(160, 120); g.lineTo(0, 120); g.fill();
+    }),
+    logo: thumb((g, w, h) => {
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#f59e0b'; g.beginPath(); g.roundRect(48, 28, 64, 64, 16); g.fill();
+      g.fillStyle = '#fff'; g.font = 'bold 40px Segoe UI'; g.textAlign = 'center'; g.fillText('A', 80, 75);
+    }),
+    banner: thumb((g, w, h) => {
+      const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#6d28d9'); gr.addColorStop(1, '#ec4899');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = 'rgba(255,255,255,.9)'; g.fillRect(20, 46, 90, 12); g.fillRect(20, 66, 60, 8);
+    }),
+    receipt: thumb((g, w, h) => {
+      g.fillStyle = '#fafafa'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#ffffff'; g.fillRect(44, 8, 72, 104); g.strokeStyle = '#ddd'; g.strokeRect(44.5, 8.5, 71, 103);
+      g.fillStyle = '#c9ced8'; for (let i = 0; i < 6; i++) g.fillRect(52, 20 + i * 13, 56 - (i % 2) * 18, 6);
+    }),
+  };
+
+  // ---------- Itens de cada captura ----------
+  const A = TEXT.ago;
+  const size = (txt) => txt.replace('.', TEXT.dec);
+  const SHOTS = {
+    1: {
+      multiple: false, accept: '',
+      clipboard: [{ name: 'clipboard-20261004-101532.png', sub: '248 KB', thumb: thumbs.screenshot }],
+      downloads: [
+        { name: 'invoice-2026-09.pdf', sub: `${size('1.2 MB')} · ${A.m15}`, glyph: '📕' },
+        { name: 'receipt-scan.jpg', sub: `${size('640 KB')} · ${A.h1}`, thumb: thumbs.receipt },
+        { name: 'billing-history.xlsx', sub: `${size('38 KB')} · ${A.h3}`, glyph: '📄' },
+        { name: 'contract-signed.pdf', sub: `${size('2.4 MB')} · ${A.y}`, glyph: '📕' },
+      ],
+    },
+    2: {
+      multiple: false, accept: 'image/*',
+      clipboard: [{ name: 'clipboard-20261004-101532.png', sub: '248 KB', thumb: thumbs.screenshot }],
+      downloads: [
+        { name: 'receipt-scan.jpg', sub: `${size('640 KB')} · ${A.h1}`, thumb: thumbs.receipt },
+        { name: 'team-photo.jpg', sub: `${size('3.1 MB')} · ${A.y}`, thumb: thumbs.photo },
+        { name: 'logo-final.png', sub: `${size('92 KB')} · ${A.y}`, thumb: thumbs.logo },
+        { name: 'spring-banner.webp', sub: `${size('410 KB')} · ${A.d2}`, thumb: thumbs.banner },
+      ],
+    },
+    3: {
+      multiple: true, accept: '',
+      clipboard: [{ name: 'clipboard-20261004-101532.png', sub: '248 KB', thumb: thumbs.screenshot, selected: true }],
+      downloads: [
+        { name: 'invoice-2026-09.pdf', sub: `${size('1.2 MB')} · ${A.m15}`, glyph: '📕', selected: true },
+        { name: 'receipt-scan.jpg', sub: `${size('640 KB')} · ${A.h1}`, thumb: thumbs.receipt, selected: true },
+        { name: 'team-photo.jpg', sub: `${size('3.1 MB')} · ${A.y}`, thumb: thumbs.photo },
+        { name: 'contract-signed.pdf', sub: `${size('2.4 MB')} · ${A.y}`, glyph: '📕' },
+      ],
+    },
+  };
+  const data = SHOTS[shot];
+
+  // ---------- Página ----------
+  const set = (id, text) => (document.getElementById(id).textContent = text);
+  set('title', TEXT.titles[shot - 1]);
+  set('subtitle', TEXT.subtitles[shot - 1]);
+  TEXT.nav.forEach((t, i) => set(`nav${i + 1}`, t));
+  set('formTitle', TEXT.formTitle);
+  set('lblSubject', TEXT.subject);
+  set('subject', TEXT.subjectValue);
+  set('lblMessage', TEXT.message);
+  set('lblFiles', TEXT.files);
+  set('attachBtn', TEXT.attachBtn);
+  set('fileHint', TEXT.fileHint[shot - 1]);
+
+  // ---------- Popup (mesma estrutura do content/content.js) ----------
+  function h(tag, props = {}, ...children) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v; else el.setAttribute(k, v === true ? '' : v);
+    }
+    el.append(...children.flat().filter((c) => c != null && c !== false));
+    return el;
+  }
+  const item = (it) => h('button', { class: 'item', 'aria-pressed': data.multiple ? String(!!it.selected) : null },
+    h('span', { class: 'thumb' }, it.thumb ? h('img', { src: it.thumb, alt: '' }) : it.glyph),
+    h('span', { class: 'meta' }, h('span', { class: 'name' }, it.name), h('span', { class: 'sub' }, it.sub)),
+    data.multiple && h('span', { class: 'check' }, '✓'));
+
+  const selectedCount = [...data.clipboard, ...data.downloads].filter((i) => i.selected).length;
+  const panel = h('div', { class: 'panel' },
+    h('header', {},
+      h('span', { class: 'title' }, data.multiple ? TEXT.popupTitleMultiple : TEXT.popupTitle),
+      data.accept && h('span', { class: 'chip' }, data.accept),
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'icon' }, '⚙'),
+      h('button', { class: 'icon' }, '✕')),
+    h('div', { class: 'body' },
+      h('section', {}, h('h3', {}, TEXT.clipboard), h('div', { class: 'list' }, data.clipboard.map(item))),
+      h('section', {}, h('h3', {}, TEXT.downloads), h('div', { class: 'list' }, data.downloads.map(item)))),
+    h('footer', {},
+      h('button', { class: data.multiple ? 'btn' : 'btn primary' }, TEXT.choose),
+      data.multiple && h('button', { class: 'btn primary' }, TEXT.attachN(selectedCount))));
+
+  const host = document.getElementById('popup-host');
+  const root = host.attachShadow({ mode: 'open' });
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(globalThis.EasyUploadPopupCSS);
+  root.adoptedStyleSheets = [sheet];
+  root.append(panel);
+
+  // Posiciona abaixo do botão "Adicionar arquivos", como a extensão faz.
+  const win = document.querySelector('.window').getBoundingClientRect();
+  const btn = document.getElementById('attachBtn').getBoundingClientRect();
+  const popupHeight = panel.getBoundingClientRect().height;
+  let popupTop = btn.bottom - win.top + 6;
+  if (popupTop + popupHeight > win.height - 12) popupTop = btn.top - win.top - popupHeight - 6;
+  host.style.left = `${btn.left - win.left}px`;
+  host.style.top = `${Math.max(12, popupTop)}px`;
+</script>
+</body>
+</html>
