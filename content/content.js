@@ -722,35 +722,53 @@
 
     async function loadDownloads(fileAccess) {
       try {
-        // O SW já devolve só os downloads compatíveis com `accept`.
-        const { items: candidates } = await sendToSW({ type: 'downloads', limit, accept: target.accept });
+        // O SW devolve todos os downloads compatíveis com `accept`, do mais recente
+        // para o mais antigo (só metadados).
+        const { items: candidates, scanned } = await sendToSW({ type: 'downloads', accept: target.accept });
         if (state.closed) return;
         const noneMessage = Accept.isRestrictive(acceptTokens) ? `Nenhum download recente compatível (${acceptLabel}).` : 'Nenhum download recente.';
+        const withIcons = async (list) => {
+          const { icons } = await sendToSW({ type: 'icons', ids: list.map((d) => d.id) }).catch(() => ({ icons: {} }));
+          return list.map((d) => ({ ...d, icon: icons[d.id] || null }));
+        };
 
         if (fileAccess === false) {
           showFileAccessBanner('Para anexar downloads, ative "Permitir acesso a URLs de arquivo" nos detalhes da extensão.');
+          const shown = await withIcons(candidates.slice(0, limit));
+          if (state.closed) return;
           downloadsList.replaceChildren(
-            ...(candidates.length
-              ? candidates.slice(0, limit).map((d) => renderItem(toDownloadItem(d), 'Requer acesso a URLs de arquivo'))
-              : [empty(noneMessage)])
+            ...(shown.length ? shown.map((d) => renderItem(toDownloadItem(d), 'Requer acesso a URLs de arquivo')) : [empty(noneMessage)])
           );
           return;
         }
 
-        const { results } = await dataPort.request({
-          op: 'probe',
-          files: candidates.map((d) => ({
-            path: d.path,
-            size: d.size,
-            thumb: Accept.mimeFor(d.name, d.mime).startsWith('image/'),
-          })),
-        });
-        if (state.closed) return;
+        // Verifica em lotes quais ainda existem no disco, até completar `limit`.
+        // Arquivos apagados ou movidos não "gastam" vagas da lista.
+        const BATCH = 20;
+        const found = [];
+        let checked = 0;
+        for (let i = 0; i < candidates.length && found.length < limit; i += BATCH) {
+          const batch = candidates.slice(i, i + BATCH);
+          const { results } = await dataPort.request({
+            op: 'probe',
+            files: batch.map((d) => ({ path: d.path, size: d.size, thumb: false })),
+          });
+          if (state.closed) return;
+          checked += batch.length;
+          batch.forEach((d, j) => results[j].exists && found.push(d));
+        }
+        dbg(`downloads: ${scanned} no histórico, ${candidates.length} compatíveis, ${checked} verificados, ${found.length} existem no disco`);
 
-        const existing = candidates
-          .map((d, i) => ({ ...toDownloadItem(d), thumb: results[i].thumb || null, exists: results[i].exists }))
-          .filter((d) => d.exists)
-          .slice(0, limit);
+        const shown = found.slice(0, limit);
+        const [{ results: thumbs }, iconed] = await Promise.all([
+          dataPort.request({
+            op: 'probe',
+            files: shown.map((d) => ({ path: d.path, size: d.size, thumb: Accept.mimeFor(d.name, d.mime).startsWith('image/') })),
+          }),
+          withIcons(shown),
+        ]);
+        if (state.closed) return;
+        const existing = iconed.map((d, i) => ({ ...toDownloadItem(d), thumb: thumbs[i]?.thumb || null }));
 
         if (!existing.length && candidates.length && fileAccess == null) {
           showFileAccessBanner('Nenhum download pôde ser lido. Verifique se "Permitir acesso a URLs de arquivo" está ativado.');

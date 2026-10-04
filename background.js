@@ -46,17 +46,19 @@ function basename(path) {
   return path.split(/[\\/]/).pop() || path;
 }
 
-async function listDownloads(limit, accept) {
+// Devolve todos os downloads compatíveis com `accept` (só metadados, sem ícones),
+// do mais recente para o mais antigo. O content script verifica em lotes quais
+// ainda existem no disco (o campo `exists` do Chrome pode estar desatualizado)
+// até completar a quantidade configurada, e só então pede os ícones.
+const HISTORY_SCAN = 300;
+
+async function listDownloads(accept) {
   const tokens = EasyUploadAccept.parse(accept);
-  // Busca mais itens do que o necessário: alguns podem não existir mais no
-  // disco (o campo `exists` do Chrome pode estar desatualizado) e são
-  // descartados depois pela checagem do offscreen. Com `accept` restrito, varre
-  // um trecho maior do histórico para achar N itens compatíveis.
   const results = await chrome.downloads.search({
     orderBy: ['-startTime'],
     state: 'complete',
     exists: true,
-    limit: EasyUploadAccept.isRestrictive(tokens) ? 300 : Math.max(limit * 3, 20),
+    limit: HISTORY_SCAN,
   });
 
   const items = [];
@@ -71,21 +73,23 @@ async function listDownloads(limit, accept) {
       mime: d.mime || '',
       size: d.fileSize > 0 ? d.fileSize : d.totalBytes > 0 ? d.totalBytes : 0,
       time: d.endTime || d.startTime,
-      icon: null,
     });
-    if (items.length >= limit * 2) break;
   }
+  return { items, scanned: results.length };
+}
 
+async function getIcons(ids) {
+  const icons = {};
   await Promise.all(
-    items.map(async (item) => {
+    ids.map(async (id) => {
       try {
-        item.icon = await chrome.downloads.getFileIcon(item.id, { size: 32 });
+        icons[id] = await chrome.downloads.getFileIcon(id, { size: 32 });
       } catch {
         // sem ícone, a UI usa um glifo genérico
       }
     })
   );
-  return items;
+  return icons;
 }
 
 // Repassa para um frame específico da aba de origem (tabs.sendMessage não exige a permissão "tabs").
@@ -125,7 +129,9 @@ async function handle(msg, sender) {
       await ensureOffscreen();
       return { ok: true, fileAccess: await getFileAccess() };
     case 'downloads':
-      return { ok: true, items: await listDownloads(Math.min(Math.max(msg.limit | 0, 1), 30), msg.accept) };
+      return { ok: true, ...(await listDownloads(msg.accept)) };
+    case 'icons':
+      return { ok: true, icons: await getIcons((msg.ids || []).slice(0, 50)) };
     case 'openOptions':
       await chrome.runtime.openOptionsPage();
       return { ok: true };
