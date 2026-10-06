@@ -329,7 +329,7 @@
       accept: req.accept,
       multiple: req.multiple,
       anchorRect: () => (req.rect ? new DOMRect(req.rect.x, req.rect.y, req.rect.w, req.rect.h) : null),
-      container: () => document.querySelector('dialog:modal') || document.fullscreenElement || document.documentElement,
+      container: () => pickContainer(null),
       async deliver(items) {
         // Sem thumbnails: só o necessário para o iframe buscar os bytes.
         const slim = items.map(({ source, key, path, name, type, lastModified }) => ({ source, key, path, name, type, lastModified }));
@@ -552,11 +552,13 @@
     dbg('popup closed:', reason || 'done');
   }
 
+  // Um <dialog> modal deixa o resto da página inerte, inclusive o top layer. O popup
+  // precisa ficar dentro do modal aberto, esteja o input dentro dele ou não.
   function pickContainer(input) {
-    // Um <dialog> modal deixa o resto da página inerte.
-    const modal = input.isConnected ? input.closest('dialog') : document.querySelector('dialog:modal');
-    if (modal?.matches(':modal')) return modal;
-    return document.fullscreenElement || document.documentElement;
+    const own = input?.isConnected ? input.closest('dialog') : null;
+    if (own?.matches(':modal')) return own;
+    const modals = document.querySelectorAll('dialog:modal');
+    return modals[modals.length - 1] || document.fullscreenElement || document.documentElement;
   }
 
   function anchorRect(input) {
